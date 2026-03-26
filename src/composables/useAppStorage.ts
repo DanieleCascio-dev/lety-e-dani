@@ -990,6 +990,43 @@ export function useAppStorage() {
     }
   }
 
+  async function updateGroceryItemText(id: string, text: string): Promise<boolean> {
+    const t = text.trim().replace(/[\u0000-\u001f]/g, '').slice(0, 200)
+    if (!t) {
+      groceriesError.value = 'Il nome dell’articolo non può essere vuoto.'
+      return false
+    }
+    const item = groceries.value.find((i) => i.id === id)
+    if (!item) return false
+    const prevText = item.text
+    if (prevText === t) {
+      groceriesError.value = null
+      return true
+    }
+    const sb = getSupabaseClient()
+    if (!sb) {
+      item.text = t
+      syncLocalGroceriesToMap()
+      groceriesError.value = null
+      return true
+    }
+    const lid = selectedGroceryListId.value
+    if (!lid) return false
+    item.text = t
+    const { error } = await sb
+      .from('grocery_items')
+      .update({ text: t })
+      .eq('id', id)
+      .eq('list_id', lid)
+    if (error) {
+      item.text = prevText
+      groceriesError.value = error.message
+      return false
+    }
+    groceriesError.value = null
+    return true
+  }
+
   async function removeGroceryItem(id: string) {
     const sb = getSupabaseClient()
     if (!sb) {
@@ -1060,6 +1097,7 @@ export function useAppStorage() {
     markAllGroceryItemsDone,
     addGroceryItem,
     setGroceryItemDone,
+    updateGroceryItemText,
     removeGroceryItem,
     clearDoneGroceryItems,
   }
