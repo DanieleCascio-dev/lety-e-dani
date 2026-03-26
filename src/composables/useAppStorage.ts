@@ -421,6 +421,7 @@ export function ensureGroceryRealtimeConnected() {
 export async function syncSessionToAppUser(session: Session | null) {
   appUserSessionValid.value = false
   if (!session?.user) {
+    authSession.value = null
     teardownGroceryRealtime()
     groceries.value = []
     groceryLists.value = []
@@ -428,6 +429,8 @@ export async function syncSessionToAppUser(session: Session | null) {
     localItemsByList.value = {}
     return
   }
+  /** Subito dopo login/password: il router guard usa authSession; onAuthStateChange può arrivare dopo. */
+  authSession.value = session
   const sb = getSupabaseClient()
   if (!sb) return
   const role = await fetchAppRoleFromDb(session.user.id)
