@@ -1,75 +1,152 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
-import { RouterLink, RouterView } from 'vue-router'
-import { useAppStorage } from '@/composables/useAppStorage'
-import type { UserId } from '@/types/app'
+  import { computed, onMounted, onUnmounted, ref } from "vue";
+  import { RouterLink, RouterView, useRoute, useRouter } from "vue-router";
+  import { useAppStorage, signOutUser } from "@/composables/useAppStorage";
+  import { getSupabaseClient } from "@/lib/supabase";
+  import type { UserId } from "@/types/app";
+  import danyAvatarUrl from "@/assets/propic/dany.jpeg";
+  import letyAvatarUrl from "@/assets/propic/lety.jpeg";
 
-const { activeUser, setActiveUser } = useAppStorage()
+  /** Per v-bind() nel CSS: url("...") con path risolto da Vite */
+  const danyAvatarBg = `url("${danyAvatarUrl}")`;
+  const letyAvatarBg = `url("${letyAvatarUrl}")`;
 
-const profileLetter = computed(() => (activeUser.value === 'daniele' ? 'D' : 'L'))
+  const route = useRoute();
+  const router = useRouter();
+  const { activeUser, setActiveUser } = useAppStorage();
 
-const profileName = computed(() => (activeUser.value === 'daniele' ? 'Daniele' : 'Letizia'))
-
-const profileMenuOpen = ref(false)
-const profileDropdownEl = ref<HTMLElement | null>(null)
-
-function toggleProfileMenu() {
-  profileMenuOpen.value = !profileMenuOpen.value
-}
-
-function closeProfileMenu() {
-  profileMenuOpen.value = false
-}
-
-function pickProfile(id: UserId) {
-  setActiveUser(id)
-  closeProfileMenu()
-}
-
-function onDocumentPointerDown(ev: PointerEvent) {
-  if (!profileMenuOpen.value) return
-  const root = profileDropdownEl.value
-  const t = ev.target
-  if (root && t instanceof Node && !root.contains(t)) {
-    closeProfileMenu()
+  function useSupabaseAuth(): boolean {
+    return getSupabaseClient() !== null;
   }
-}
 
-function onDocumentKeydown(ev: KeyboardEvent) {
-  if (ev.key === 'Escape') closeProfileMenu()
-}
+  const showAccountMenu = computed(
+    () => useSupabaseAuth() && route.name !== "login",
+  );
 
-onMounted(() => {
-  document.addEventListener('pointerdown', onDocumentPointerDown, true)
-  document.addEventListener('keydown', onDocumentKeydown, true)
-})
+  const showAppSubNav = computed(() => route.name !== "login");
 
-onUnmounted(() => {
-  document.removeEventListener('pointerdown', onDocumentPointerDown, true)
-  document.removeEventListener('keydown', onDocumentKeydown, true)
-})
+  const profileName = computed(() =>
+    activeUser.value === "daniele" ? "Daniele" : "Letizia",
+  );
+
+  const profileMenuOpen = ref(false);
+  const profileDropdownEl = ref<HTMLElement | null>(null);
+
+  function toggleProfileMenu() {
+    profileMenuOpen.value = !profileMenuOpen.value;
+  }
+
+  function closeProfileMenu() {
+    profileMenuOpen.value = false;
+  }
+
+  function pickProfile(id: UserId) {
+    setActiveUser(id);
+    closeProfileMenu();
+  }
+
+  async function logout() {
+    closeProfileMenu();
+    await signOutUser();
+    await router.push({ name: "login" });
+  }
+
+  function onDocumentPointerDown(ev: PointerEvent) {
+    if (!profileMenuOpen.value) return;
+    const root = profileDropdownEl.value;
+    const t = ev.target;
+    if (root && t instanceof Node && !root.contains(t)) {
+      closeProfileMenu();
+    }
+  }
+
+  function onDocumentKeydown(ev: KeyboardEvent) {
+    if (ev.key === "Escape") closeProfileMenu();
+  }
+
+  onMounted(() => {
+    document.addEventListener("pointerdown", onDocumentPointerDown, true);
+    document.addEventListener("keydown", onDocumentKeydown, true);
+  });
+
+  onUnmounted(() => {
+    document.removeEventListener("pointerdown", onDocumentPointerDown, true);
+    document.removeEventListener("keydown", onDocumentKeydown, true);
+  });
 </script>
 
 <template>
   <div class="app-shell d-flex flex-column min-vh-100">
     <nav class="navbar navbar-dark bg-primary sticky-top shadow-sm py-2">
-      <div class="container-fluid px-3 px-sm-4 flex-wrap gap-2" style="max-width: 42rem">
-        <div class="d-flex align-items-center gap-2 me-auto">
-          <div ref="profileDropdownEl" class="dropdown profile-dropdown position-relative">
+      <div
+        class="container-fluid px-3 px-sm-4 d-flex flex-column align-items-stretch gap-0"
+        style="max-width: 42rem"
+      >
+        <div class="d-flex align-items-center gap-2 w-100">
+          <div
+            v-if="showAccountMenu"
+            ref="profileDropdownEl"
+            class="dropdown profile-dropdown position-relative"
+          >
             <button
               id="profile-menu"
               type="button"
               class="btn rounded-circle d-inline-flex align-items-center justify-content-center fw-semibold text-white border-0 shadow-sm profile-avatar-btn"
               :class="
-                activeUser === 'daniele' ? 'profile-avatar-btn--daniele' : 'profile-avatar-btn--letizia'
+                activeUser === 'daniele'
+                  ? 'profile-avatar-btn--daniele'
+                  : 'profile-avatar-btn--letizia'
               "
               aria-haspopup="true"
               :aria-expanded="profileMenuOpen"
               :aria-label="`Profilo: ${profileName}. Apri menu utente`"
               @click.stop="toggleProfileMenu"
+            ></button>
+            <ul
+              class="dropdown-menu dropdown-menu-start shadow-sm mt-2"
+              :class="{ show: profileMenuOpen }"
+              role="menu"
+              aria-labelledby="profile-menu"
+              :aria-hidden="!profileMenuOpen"
             >
-              {{ profileLetter }}
-            </button>
+              <li role="none">
+                <div class="dropdown-item-text small text-secondary py-1">
+                  {{ profileName }}
+                </div>
+              </li>
+              <li><hr class="dropdown-divider" /></li>
+              <li role="none">
+                <button
+                  type="button"
+                  class="dropdown-item"
+                  role="menuitem"
+                  @click="logout"
+                >
+                  Esci
+                </button>
+              </li>
+            </ul>
+          </div>
+
+          <div
+            v-else-if="!useSupabaseAuth()"
+            ref="profileDropdownEl"
+            class="dropdown profile-dropdown position-relative"
+          >
+            <button
+              id="profile-menu"
+              type="button"
+              class="btn rounded-circle d-inline-flex align-items-center justify-content-center fw-semibold text-white border-0 shadow-sm profile-avatar-btn"
+              :class="
+                activeUser === 'daniele'
+                  ? 'profile-avatar-btn--daniele'
+                  : 'profile-avatar-btn--letizia'
+              "
+              aria-haspopup="true"
+              :aria-expanded="profileMenuOpen"
+              :aria-label="`Profilo: ${profileName}. Apri menu utente`"
+              @click.stop="toggleProfileMenu"
+            ></button>
             <ul
               class="dropdown-menu dropdown-menu-start shadow-sm mt-2"
               :class="{ show: profileMenuOpen }"
@@ -87,7 +164,10 @@ onUnmounted(() => {
                   :aria-checked="activeUser === 'daniele'"
                   @click="pickProfile('daniele')"
                 >
-                  <span class="profile-dot profile-dot--daniele" aria-hidden="true" />
+                  <span
+                    class="profile-dot profile-dot--daniele"
+                    aria-hidden="true"
+                  />
                   Daniele
                 </button>
               </li>
@@ -101,14 +181,69 @@ onUnmounted(() => {
                   :aria-checked="activeUser === 'letizia'"
                   @click="pickProfile('letizia')"
                 >
-                  <span class="profile-dot profile-dot--letizia" aria-hidden="true" />
+                  <span
+                    class="profile-dot profile-dot--letizia"
+                    aria-hidden="true"
+                  />
                   Letizia
                 </button>
               </li>
             </ul>
           </div>
 
-          <RouterLink class="navbar-brand fw-semibold mb-0" to="/">Lety e Dani</RouterLink>
+          <RouterLink
+            class="navbar-brand fw-semibold mb-0 text-white text-decoration-none"
+            to="/"
+            >Lety e Dani</RouterLink
+          >
+        </div>
+
+        <div
+          v-if="showAppSubNav"
+          class="app-subnav w-100 border-top border-light border-opacity-25 mt-2 pt-2"
+        >
+          <ul
+            class="list-unstyled d-flex flex-row flex-wrap gap-1 mb-0 small align-items-start"
+            role="navigation"
+            aria-label="Sezioni principali"
+          >
+            <li class="flex-shrink-0">
+              <RouterLink
+                class="app-subnav-link app-subnav-link--long"
+                active-class="app-subnav-link--active"
+                :to="{ name: 'home' }"
+              >
+                Benvenut* nel nostro magico spazio!
+              </RouterLink>
+            </li>
+            <li>
+              <RouterLink
+                class="app-subnav-link"
+                active-class="app-subnav-link--active"
+                :to="{ name: 'shopping' }"
+              >
+                Lista della spesa
+              </RouterLink>
+            </li>
+            <li>
+              <RouterLink
+                class="app-subnav-link"
+                active-class="app-subnav-link--active"
+                :to="{ name: 'wishlist' }"
+              >
+                Lista dei desideri
+              </RouterLink>
+            </li>
+            <li>
+              <RouterLink
+                class="app-subnav-link"
+                active-class="app-subnav-link--active"
+                :to="{ name: 'restaurants' }"
+              >
+                Ristoranti
+              </RouterLink>
+            </li>
+          </ul>
         </div>
       </div>
     </nav>
@@ -118,44 +253,88 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-.app-shell {
-  background: var(--bs-gray-100, #f8f9fa);
-}
+  .app-shell {
+    background: var(--bs-gray-100, #f8f9fa);
+  }
 
-.profile-avatar-btn {
-  width: 2.25rem;
-  height: 2.25rem;
-  padding: 0;
-  font-size: 0.95rem;
-  line-height: 1;
-}
+  .profile-avatar-btn {
+    width: 2.25rem;
+    height: 2.25rem;
+    padding: 0;
+    font-size: 0.95rem;
+    line-height: 1;
+  }
 
-.profile-avatar-btn--daniele {
-  background: linear-gradient(135deg, #6b1f3d 0%, #4b2a6e 100%);
-}
+  .profile-avatar-btn--daniele {
+    background-color: #3d2a4e;
+    background-image: v-bind(danyAvatarBg);
+    background-size: cover;
+    background-position: 50% 28%;
+    background-repeat: no-repeat;
+  }
 
-.profile-avatar-btn--letizia {
-  background: #c9a227;
-}
+  .profile-avatar-btn--letizia {
+    background-color: #c9a227;
+    background-image: v-bind(letyAvatarBg);
+    background-size: cover;
+    background-position: 28% 22%;
+    background-repeat: no-repeat;
+  }
 
-.profile-dot {
-  display: inline-block;
-  width: 0.5rem;
-  height: 0.5rem;
-  border-radius: 50%;
-  flex-shrink: 0;
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.06);
-}
+  .profile-dot {
+    display: inline-block;
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 50%;
+    flex-shrink: 0;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.06);
+  }
 
-.profile-dot--daniele {
-  background: linear-gradient(135deg, #6b1f3d 0%, #4b2a6e 100%);
-}
+  .profile-dot--daniele {
+    background: linear-gradient(135deg, #6b1f3d 0%, #4b2a6e 100%);
+  }
 
-.profile-dot--letizia {
-  background: #c9a227;
-}
+  .profile-dot--letizia {
+    background: #c9a227;
+  }
 
-.profile-dropdown .dropdown-menu {
-  z-index: 1050;
-}
+  .profile-dropdown .dropdown-menu {
+    z-index: 1050;
+  }
+
+  /* Evitiamo nav-pills di Bootstrap: con .active impone testo bianco anche su sfondo chiaro. */
+  .app-subnav-link {
+    display: inline-block;
+    padding: 0.35rem 0.7rem;
+    border-radius: 0.4rem;
+    color: rgba(255, 255, 255, 0.92);
+    text-decoration: none;
+    transition:
+      color 0.15s ease,
+      background-color 0.15s ease;
+  }
+
+  .app-subnav-link--long {
+    max-width: min(100%, 16rem);
+    line-height: 1.3;
+  }
+
+  .app-subnav-link:hover {
+    color: #fff;
+    background-color: rgba(255, 255, 255, 0.14);
+  }
+
+  .app-subnav-link.app-subnav-link--active,
+  .app-subnav-link.router-link-active {
+    color: #1a1d20;
+    background-color: #fff;
+    font-weight: 600;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  }
+
+  .app-subnav-link.app-subnav-link--active:hover,
+  .app-subnav-link.router-link-active:hover {
+    color: #1a1d20;
+    background-color: #fff;
+  }
 </style>

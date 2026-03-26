@@ -1,0 +1,26 @@
+# Supabase CLI — progetto collegato (evita --project-ref ad ogni deploy).
+project_id = "vczaexlhpdzzeomkfvqo"
+
+# Secret OpenAI (una tantum sul progetto remoto):
+#   supabase secrets set OPENAI_API_KEY=sk-... --project-ref vczaexlhpdzzeomkfvqo
+#
+# Deploy funzione lista Chat:
+#   supabase functions deploy chat-grocery-list
+#   oppure esplicito:
+#   supabase functions deploy chat-grocery-list --project-ref vczaexlhpdzzeomkfvqo
+#
+# Test manuale (JWT = anon key del progetto; con verify_jwt serve un Bearer valido):
+#   curl -L -X POST \
+#     'https://vczaexlhpdzzeomkfvqo.supabase.co/functions/v1/chat-grocery-list' \
+#     -H 'Authorization: Bearer YOUR_ANON_KEY' \
+#     -H 'Content-Type: application/json' \
+#     --data '{"listName":"prova"}'
+
+# false: il browser invia OPTIONS senza JWT; con true il gateway risponde errore al preflight → CORS fallisce.
+# L’autenticazione resta obbligatoria nel codice (Authorization + getUser + app_user).
+[functions.chat-grocery-list]
+verify_jwt = false
+
+# Deploy: supabase functions deploy vegan-offers
+[functions.vegan-offers]
+verify_jwt = false
