@@ -30,6 +30,7 @@
     appUserSessionValid,
     isGroceryCloud,
     textIconClassFor,
+    textIconStyleFor,
     createGroceryList,
     createChatGroceryList,
     renameGroceryList,
@@ -423,6 +424,7 @@
                 <span
                   class="shrink-0"
                   :class="textIconClassFor(currentGroceryListMeta.createdBy)"
+                  :style="textIconStyleFor(currentGroceryListMeta.createdBy)"
                   :title="`Creata da ${userLabel(currentGroceryListMeta.createdBy)}`"
                   aria-hidden="true"
                 />
@@ -449,6 +451,7 @@
                   <span
                     class="shrink-0"
                     :class="textIconClassFor(list.createdBy)"
+                    :style="textIconStyleFor(list.createdBy)"
                     :title="`Creata da ${userLabel(list.createdBy)}`"
                     aria-hidden="true"
                   />
@@ -1030,6 +1033,7 @@
               <span
                 class="shrink-0 ms-1"
                 :class="textIconClassFor(item.addedBy)"
+                :style="textIconStyleFor(item.addedBy)"
                 :title="`Aggiunto da ${userLabel(item.addedBy)}`"
                 aria-hidden="true"
               />
@@ -1201,17 +1205,57 @@
     display: inline-block;
     width: 0.65rem;
     height: 0.65rem;
-    border-radius: 50%;
     flex-shrink: 0;
+    box-sizing: border-box;
+  }
+
+  .grocery-text-icon--shape-circle {
+    border-radius: 50%;
+  }
+
+  .grocery-text-icon--shape-square {
+    border-radius: 0;
+  }
+
+  .grocery-text-icon--shape-rounded {
+    border-radius: 35%;
+  }
+
+  .grocery-text-icon--shape-diamond {
+    border-radius: 12%;
+    transform: rotate(45deg) scale(0.92);
+    vertical-align: middle;
+  }
+
+  .grocery-text-icon--shape-triangle {
+    border-radius: 0;
+    clip-path: polygon(50% 4%, 4% 96%, 96% 96%);
+  }
+
+  .grocery-text-icon--shape-star {
+    border-radius: 0;
+    clip-path: polygon(
+      50% 0%,
+      61% 35%,
+      98% 35%,
+      68% 57%,
+      79% 91%,
+      50% 70%,
+      21% 91%,
+      32% 57%,
+      2% 35%,
+      39% 35%
+    );
+  }
+
+  .grocery-text-icon--palette-daniele {
+    background: linear-gradient(135deg, #6b1f3d 0%, #4b2a6e 100%);
     box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08);
   }
 
-  .grocery-text-icon--daniele {
-    background: linear-gradient(135deg, #6b1f3d 0%, #4b2a6e 100%);
-  }
-
-  .grocery-text-icon--letizia {
+  .grocery-text-icon--palette-letizia {
     background: #c9a227;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08);
   }
 
   /* Teleported modals: safe area + sheet su telefono */

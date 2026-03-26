@@ -1,6 +1,12 @@
 import { computed, ref, watch } from 'vue'
 import type { RealtimeChannel, Session } from '@supabase/supabase-js'
-import type { GroceryItem, GroceryListMeta, UserId, UserProfile } from '@/types/app'
+import type {
+  GroceryItem,
+  GroceryListMeta,
+  IconShape,
+  UserId,
+  UserProfile,
+} from '@/types/app'
 import type { VeganOffersResult } from '@/types/offers'
 import { getSupabaseClient } from '@/lib/supabase'
 import { authSession } from '@/auth/authSession'
@@ -54,13 +60,38 @@ const DEFAULT_PROFILES: Record<UserId, UserProfile> = {
   daniele: {
     id: 'daniele',
     displayName: 'Daniele',
-    textIcon: 'grocery-text-icon grocery-text-icon--daniele',
+    textIcon: 'grocery-text-icon',
+    iconColor: null,
+    iconShape: 'circle',
   },
   letizia: {
     id: 'letizia',
     displayName: 'Letizia',
-    textIcon: 'grocery-text-icon grocery-text-icon--letizia',
+    textIcon: 'grocery-text-icon',
+    iconColor: null,
+    iconShape: 'circle',
   },
+}
+
+function parseIconShape(raw: unknown): IconShape {
+  if (
+    raw === 'square' ||
+    raw === 'rounded' ||
+    raw === 'diamond' ||
+    raw === 'circle' ||
+    raw === 'triangle' ||
+    raw === 'star'
+  ) {
+    return raw
+  }
+  return 'circle'
+}
+
+function normalizeHexColor(raw: string | null | undefined): string | null {
+  if (raw == null || !String(raw).trim()) return null
+  const s = String(raw).trim()
+  if (/^#[0-9A-Fa-f]{6}$/.test(s)) return s
+  return null
 }
 
 function loadProfiles(): Record<UserId, UserProfile> {
@@ -72,8 +103,20 @@ function loadProfiles(): Record<UserId, UserProfile> {
   try {
     const parsed = JSON.parse(raw) as Partial<Record<UserId, Partial<UserProfile>>>
     return {
-      daniele: { ...DEFAULT_PROFILES.daniele, ...parsed.daniele, id: 'daniele' },
-      letizia: { ...DEFAULT_PROFILES.letizia, ...parsed.letizia, id: 'letizia' },
+      daniele: {
+        ...DEFAULT_PROFILES.daniele,
+        ...parsed.daniele,
+        id: 'daniele',
+        iconColor: normalizeHexColor(parsed.daniele?.iconColor as string) ?? DEFAULT_PROFILES.daniele.iconColor,
+        iconShape: parseIconShape(parsed.daniele?.iconShape),
+      },
+      letizia: {
+        ...DEFAULT_PROFILES.letizia,
+        ...parsed.letizia,
+        id: 'letizia',
+        iconColor: normalizeHexColor(parsed.letizia?.iconColor as string) ?? DEFAULT_PROFILES.letizia.iconColor,
+        iconShape: parseIconShape(parsed.letizia?.iconShape),
+      },
     }
   } catch {
     return { ...DEFAULT_PROFILES }
@@ -373,26 +416,106 @@ async function startGroceriesSync() {
   queueMicrotask(() => setupGroceryRealtimeChannel())
 }
 
-type AppUserRow = { app_role: string }
+type AppUserRowDb = {
+  app_role: string
+  icon_color: string | null
+  icon_shape: string | null
+}
 
 export const lastAppUserFetchError = ref<string | null>(null)
 
-async function fetchAppRoleFromDb(userId: string): Promise<UserId | null> {
+function applyAppUserRowToProfiles(row: AppUserRowDb) {
+  const role = row.app_role
+  if (role !== 'daniele' && role !== 'letizia') return
+  const uid = role as UserId
+  userProfiles.value = {
+    ...userProfiles.value,
+    [uid]: {
+      ...userProfiles.value[uid],
+      iconColor: normalizeHexColor(row.icon_color),
+      iconShape: parseIconShape(row.icon_shape),
+      textIcon: 'grocery-text-icon',
+    },
+  }
+}
+
+async function fetchAppUserRow(userId: string): Promise<AppUserRowDb | null> {
   lastAppUserFetchError.value = null
   const sb = getSupabaseClient()
   if (!sb) return null
   const { data, error } = await sb
     .from('app_user')
-    .select('app_role')
+    .select('app_role, icon_color, icon_shape')
     .eq('user_id', userId)
     .maybeSingle()
   if (error) {
-    lastAppUserFetchError.value = error.message
-    return null
+    const { data: legacy, error: legacyErr } = await sb
+      .from('app_user')
+      .select('app_role')
+      .eq('user_id', userId)
+      .maybeSingle()
+    if (legacyErr || !legacy) {
+      lastAppUserFetchError.value = error.message
+      return null
+    }
+    return {
+      app_role: (legacy as { app_role: string }).app_role,
+      icon_color: null,
+      icon_shape: 'circle',
+    }
   }
   if (!data) return null
-  const r = (data as AppUserRow).app_role
-  return r === 'daniele' || r === 'letizia' ? r : null
+  return data as AppUserRowDb
+}
+
+async function fetchAppRoleFromDb(userId: string): Promise<UserId | null> {
+  const row = await fetchAppUserRow(userId)
+  if (!row) return null
+  const r = row.app_role
+  if (r !== 'daniele' && r !== 'letizia') return null
+  applyAppUserRowToProfiles(row)
+  return r
+}
+
+/**
+ * Ricarica da DB le preferenze icona (dopo salvataggio in pagina Profilo).
+ */
+export async function refreshAppUserProfileFromDb(): Promise<boolean> {
+  const uid = authSession.value?.user?.id
+  if (!uid) return false
+  const row = await fetchAppUserRow(uid)
+  if (!row) return false
+  const r = row.app_role
+  if (r !== 'daniele' && r !== 'letizia') return false
+  applyAppUserRowToProfiles(row)
+  return true
+}
+
+/**
+ * Salva colore e forma icona per l’utente corrente (tabella app_user).
+ */
+export async function saveAppUserIconPreferences(
+  color: string | null,
+  shape: IconShape,
+): Promise<{ ok: boolean; error?: string }> {
+  const sb = getSupabaseClient()
+  const uid = authSession.value?.user?.id
+  if (!sb || !uid || !appUserSessionValid.value) {
+    return { ok: false, error: 'Non autenticato.' }
+  }
+  const c = color ? normalizeHexColor(color) : null
+  if (color && color.trim() && !c) {
+    return { ok: false, error: 'Colore non valido: usa formato #RRGGBB (es. #c9a227).' }
+  }
+  const sh = parseIconShape(shape)
+  const { error } = await sb.from('app_user').update({ icon_color: c, icon_shape: sh }).eq('user_id', uid)
+  if (error) return { ok: false, error: error.message }
+  applyAppUserRowToProfiles({
+    app_role: activeUser.value,
+    icon_color: c,
+    icon_shape: sh,
+  })
+  return { ok: true }
 }
 
 export const appUserSessionValid = ref(false)
@@ -419,8 +542,8 @@ export function ensureGroceryRealtimeConnected() {
 }
 
 export async function syncSessionToAppUser(session: Session | null) {
-  appUserSessionValid.value = false
   if (!session?.user) {
+    appUserSessionValid.value = false
     authSession.value = null
     teardownGroceryRealtime()
     groceries.value = []
@@ -429,12 +552,17 @@ export async function syncSessionToAppUser(session: Session | null) {
     localItemsByList.value = {}
     return
   }
-  /** Subito dopo login/password: il router guard usa authSession; onAuthStateChange può arrivare dopo. */
+  /**
+   * Non azzerare appUserSessionValid all’ingresso: su TOKEN_REFRESHED e altri eventi
+   * `fetchAppRoleFromDb` è async; se lo mettiamo a false subito, il router guard
+   * ci tratta come sloggati durante la richiesta e reindirizza a /login.
+   */
   authSession.value = session
   const sb = getSupabaseClient()
   if (!sb) return
   const role = await fetchAppRoleFromDb(session.user.id)
   if (!role) {
+    appUserSessionValid.value = false
     teardownGroceryRealtime()
     groceries.value = []
     groceryLists.value = []
@@ -960,7 +1088,24 @@ export function useAppStorage() {
   }
 
   function textIconClassFor(userId: UserId): string {
-    return userProfiles.value[userId].textIcon
+    const p = userProfiles.value[userId]
+    const shape = p.iconShape ?? 'circle'
+    const parts = ['grocery-text-icon', `grocery-text-icon--shape-${shape}`]
+    if (!p.iconColor) {
+      parts.push(
+        userId === 'daniele' ? 'grocery-text-icon--palette-daniele' : 'grocery-text-icon--palette-letizia',
+      )
+    }
+    return parts.join(' ')
+  }
+
+  function textIconStyleFor(userId: UserId): Record<string, string> | undefined {
+    const p = userProfiles.value[userId]
+    if (!p.iconColor) return undefined
+    return {
+      background: p.iconColor,
+      boxShadow: '0 0 0 1px rgba(0, 0, 0, 0.08)',
+    }
   }
 
   async function addGroceryItem(text: string): Promise<boolean> {
@@ -1110,6 +1255,7 @@ export function useAppStorage() {
     userProfiles,
     profileFor,
     textIconClassFor,
+    textIconStyleFor,
     groceryLists,
     groceryListsLoading,
     selectedGroceryListId,

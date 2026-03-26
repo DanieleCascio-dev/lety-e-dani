@@ -11,6 +11,8 @@ body {
 
 #app {
   min-height: 100dvh;
+  /* Allineato allo sfondo chiaro di .app-shell: evita testo chiaro da base.css (dark OS) illeggibile */
+  color: var(--bs-body-color, #212529);
 }
 
 /* Mobile / PWA: safe areas (notch, home indicator) — use with padding on fixed/sticky UI */

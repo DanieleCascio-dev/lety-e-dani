@@ -114,6 +114,16 @@
                   {{ profileName }}
                 </div>
               </li>
+              <li role="none">
+                <RouterLink
+                  class="dropdown-item"
+                  role="menuitem"
+                  :to="{ name: 'profile' }"
+                  @click="closeProfileMenu"
+                >
+                  Profilo
+                </RouterLink>
+              </li>
               <li><hr class="dropdown-divider" /></li>
               <li role="none">
                 <button
