@@ -11,6 +11,45 @@ const PROFILES_KEY = 'lety-dani:user-profiles'
 const SELECTED_GROCERY_LIST_KEY = 'lety-dani:selected-grocery-list-id'
 const LOCAL_GROCERY_V2_KEY = 'lety-dani:grocery-v2'
 
+/** Ultima lista aperta: localStorage (sopravvive a reload / nuove tab); sessionStorage come fallback legacy. */
+function readPersistedSelectedGroceryListId(): string | null {
+  try {
+    const fromLs = localStorage.getItem(SELECTED_GROCERY_LIST_KEY)
+    if (fromLs) return fromLs
+  } catch {
+    /* ignore */
+  }
+  const fromSs = sessionStorage.getItem(SELECTED_GROCERY_LIST_KEY)
+  if (fromSs) {
+    try {
+      localStorage.setItem(SELECTED_GROCERY_LIST_KEY, fromSs)
+    } catch {
+      /* ignore */
+    }
+    sessionStorage.removeItem(SELECTED_GROCERY_LIST_KEY)
+  }
+  return fromSs
+}
+
+function writePersistedSelectedGroceryListId(id: string | null) {
+  try {
+    if (id) {
+      localStorage.setItem(SELECTED_GROCERY_LIST_KEY, id)
+      sessionStorage.setItem(SELECTED_GROCERY_LIST_KEY, id)
+    } else {
+      localStorage.removeItem(SELECTED_GROCERY_LIST_KEY)
+      sessionStorage.removeItem(SELECTED_GROCERY_LIST_KEY)
+    }
+  } catch {
+    try {
+      if (id) sessionStorage.setItem(SELECTED_GROCERY_LIST_KEY, id)
+      else sessionStorage.removeItem(SELECTED_GROCERY_LIST_KEY)
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
 const DEFAULT_PROFILES: Record<UserId, UserProfile> = {
   daniele: {
     id: 'daniele',
@@ -134,8 +173,12 @@ const veganOffersData = ref<VeganOffersResult | null>(null)
 const groceryLists = ref<GroceryListMeta[]>([])
 const groceryListsLoading = ref(false)
 const groceries = ref<GroceryItem[]>([])
-const selectedGroceryListId = ref<string | null>(sessionStorage.getItem(SELECTED_GROCERY_LIST_KEY))
+const selectedGroceryListId = ref<string | null>(readPersistedSelectedGroceryListId())
 const localItemsByList = ref<Record<string, GroceryItem[]>>({})
+
+watch(selectedGroceryListId, (id) => {
+  writePersistedSelectedGroceryListId(id)
+})
 
 const u = sessionStorage.getItem(ACTIVE_USER_KEY)
 if (u === 'daniele' || u === 'letizia') {
@@ -170,11 +213,6 @@ function persistLocalV2() {
     selectedListId: selectedGroceryListId.value,
   }
   sessionStorage.setItem(LOCAL_GROCERY_V2_KEY, JSON.stringify(p))
-  if (selectedGroceryListId.value) {
-    sessionStorage.setItem(SELECTED_GROCERY_LIST_KEY, selectedGroceryListId.value)
-  } else {
-    sessionStorage.removeItem(SELECTED_GROCERY_LIST_KEY)
-  }
 }
 
 function loadLocalV2(): boolean {
@@ -263,13 +301,11 @@ async function fetchGroceryListsFromSupabase(silent: boolean) {
 async function ensureSelectedListAfterFetch() {
   const sid = selectedGroceryListId.value
   if (sid && groceryLists.value.some((l) => l.id === sid)) {
-    sessionStorage.setItem(SELECTED_GROCERY_LIST_KEY, sid)
+    writePersistedSelectedGroceryListId(sid)
     return
   }
   const first = groceryLists.value[0]?.id ?? null
   selectedGroceryListId.value = first
-  if (first) sessionStorage.setItem(SELECTED_GROCERY_LIST_KEY, first)
-  else sessionStorage.removeItem(SELECTED_GROCERY_LIST_KEY)
 }
 
 async function fetchGroceriesFromSupabase(silent: boolean) {
@@ -468,7 +504,6 @@ function newId(): string {
 
 export async function selectGroceryList(id: string) {
   selectedGroceryListId.value = id
-  sessionStorage.setItem(SELECTED_GROCERY_LIST_KEY, id)
   const sb = getSupabaseClient()
   if (sb) await fetchGroceriesFromSupabase(false)
   else {
@@ -512,7 +547,6 @@ export async function createGroceryList(name?: string): Promise<boolean> {
   const meta = mapListRow(data as { id: string; created_at: string; created_by: string; title?: string | null })
   groceryLists.value = [meta, ...groceryLists.value]
   selectedGroceryListId.value = meta.id
-  sessionStorage.setItem(SELECTED_GROCERY_LIST_KEY, meta.id)
   groceries.value = []
   return true
 }
@@ -873,8 +907,6 @@ export async function deleteGroceryList(id: string) {
   if (wasSelected) {
     const nid = groceryLists.value[0]?.id ?? null
     selectedGroceryListId.value = nid
-    if (nid) sessionStorage.setItem(SELECTED_GROCERY_LIST_KEY, nid)
-    else sessionStorage.removeItem(SELECTED_GROCERY_LIST_KEY)
     await fetchGroceriesFromSupabase(false)
   }
 }

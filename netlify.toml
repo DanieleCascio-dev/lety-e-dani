@@ -3,6 +3,12 @@
   command = "npm run build-only"
   publish = "dist"
 
+# SPA (Vue Router): al reload su /lista-spesa ecc. serve index.html, altrimenti 404.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
 # Netlify Secrets Scanner: Vite inserisce VITE_* nel JS in dist; anon + URL sono
 # chiavi pubbliche previste dal client Supabase — vanno escluse dallo scan.
 # NON aggiungere OPENAI_API_KEY qui: non serve al sito statico (solo Supabase secrets per le Edge Functions).
