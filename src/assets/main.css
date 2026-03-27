@@ -9,6 +9,29 @@ body {
   min-height: 100dvh;
 }
 
+/*
+ * iOS Safari: con font sugli input < 16px, al focus zooma la pagina e spesso resta
+ * scroll orizzontale. Minimo 16px su mobile + niente overflow-x sul viewport.
+ * (Bootstrap .input-group-sm applica font-size ridotto anche senza .form-control-sm.)
+ */
+@media (max-width: 767.98px) {
+  html {
+    overflow-x: hidden;
+  }
+
+  input.form-control:not(.form-control-lg),
+  textarea.form-control:not(.form-control-lg),
+  select.form-select:not(.form-select-lg) {
+    font-size: max(1rem, 16px) !important;
+  }
+
+  input.form-control-lg,
+  textarea.form-control-lg,
+  select.form-select-lg {
+    font-size: 1.25rem !important;
+  }
+}
+
 #app {
   min-height: 100dvh;
   /* Allineato allo sfondo chiaro di .app-shell: evita testo chiaro da base.css (dark OS) illeggibile */
