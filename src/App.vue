@@ -9,6 +9,11 @@
   import type { UserId } from "@/types/app";
   import danyAvatarUrl from "@/assets/propic/dany.jpeg";
   import letyAvatarUrl from "@/assets/propic/lety.jpeg";
+  import NavCartIcon from "@/components/icons/NavCartIcon.vue";
+  import NavHeartIcon from "@/components/icons/NavHeartIcon.vue";
+  import NavHomeIcon from "@/components/icons/NavHomeIcon.vue";
+  import NavRestaurantIcon from "@/components/icons/NavRestaurantIcon.vue";
+  import NavTodoIcon from "@/components/icons/NavTodoIcon.vue";
 
   /** Per v-bind() nel CSS: url("...") con path risolto da Vite */
   const danyAvatarBg = `url("${danyAvatarUrl}")`;
@@ -84,21 +89,93 @@
 
 <template>
   <div class="app-shell d-flex flex-column min-vh-100">
-    <nav class="navbar navbar-dark bg-primary sticky-top shadow-sm py-2">
+    <nav
+      class="navbar navbar-light bg-body border-bottom sticky-top app-top-nav"
+    >
       <div
         class="container-fluid px-3 px-sm-4 d-flex flex-column align-items-stretch gap-0"
         style="max-width: 42rem"
       >
-        <div class="d-flex align-items-center gap-2 w-100">
+        <div
+          class="app-header-row d-flex align-items-center gap-2 w-100 min-h-0"
+        >
+          <div
+            v-if="showAppSubNav"
+            class="app-subnav app-nav-scroll flex-grow-1 min-w-0 py-1"
+          >
+            <ul
+              class="list-unstyled d-flex flex-row flex-nowrap gap-1 mb-0 align-items-center"
+              role="navigation"
+              aria-label="Sezioni principali"
+            >
+            <li class="flex-shrink-0">
+              <RouterLink
+                class="app-subnav-item"
+                active-class="app-subnav-item--active"
+                :to="{ name: 'home' }"
+                aria-label="Inizio"
+              >
+                <span class="app-subnav-icon"><NavHomeIcon /></span>
+                <span class="app-subnav-label d-none d-sm-block">Home</span>
+              </RouterLink>
+            </li>
+            <li class="flex-shrink-0">
+              <RouterLink
+                class="app-subnav-item"
+                active-class="app-subnav-item--active"
+                :to="{ name: 'shopping' }"
+                aria-label="Lista della spesa"
+              >
+                <span class="app-subnav-icon"><NavCartIcon /></span>
+                <span class="app-subnav-label d-none d-sm-block">Spesa</span>
+              </RouterLink>
+            </li>
+            <li class="flex-shrink-0">
+              <RouterLink
+                class="app-subnav-item"
+                active-class="app-subnav-item--active"
+                :to="{ name: 'wishlist' }"
+                aria-label="Lista dei desideri"
+              >
+                <span class="app-subnav-icon"><NavHeartIcon /></span>
+                <span class="app-subnav-label d-none d-sm-block">Desideri</span>
+              </RouterLink>
+            </li>
+            <li class="flex-shrink-0">
+              <RouterLink
+                class="app-subnav-item"
+                active-class="app-subnav-item--active"
+                :to="{ name: 'todos' }"
+                aria-label="Cose da fare"
+              >
+                <span class="app-subnav-icon"><NavTodoIcon /></span>
+                <span class="app-subnav-label d-none d-sm-block">Todo</span>
+              </RouterLink>
+            </li>
+            <li class="flex-shrink-0">
+              <RouterLink
+                class="app-subnav-item"
+                active-class="app-subnav-item--active"
+                :to="{ name: 'restaurants' }"
+                aria-label="Ristoranti"
+              >
+                <span class="app-subnav-icon"><NavRestaurantIcon /></span>
+                <span class="app-subnav-label d-none d-sm-block">Locali</span>
+              </RouterLink>
+            </li>
+          </ul>
+          </div>
+          <div v-else class="flex-grow-1 min-w-0" aria-hidden="true" />
+
           <div
             v-if="showAccountMenu"
             ref="profileDropdownEl"
-            class="dropdown profile-dropdown position-relative"
+            class="dropdown profile-dropdown position-relative flex-shrink-0"
           >
             <button
-              id="profile-menu"
+              id="profile-menu-auth"
               type="button"
-              class="btn rounded-circle d-inline-flex align-items-center justify-content-center fw-semibold text-white border-0 shadow-sm profile-avatar-btn"
+              class="btn rounded-circle d-inline-flex align-items-center justify-content-center fw-semibold text-white border profile-avatar-btn profile-avatar-btn--ring"
               :class="
                 activeUser === 'daniele'
                   ? 'profile-avatar-btn--daniele'
@@ -110,10 +187,10 @@
               @click.stop="toggleProfileMenu"
             ></button>
             <ul
-              class="dropdown-menu dropdown-menu-start shadow-sm mt-2"
+              class="dropdown-menu dropdown-menu-end shadow-sm mt-2"
               :class="{ show: profileMenuOpen }"
               role="menu"
-              aria-labelledby="profile-menu"
+              aria-labelledby="profile-menu-auth"
               :aria-hidden="!profileMenuOpen"
             >
               <li role="none">
@@ -148,12 +225,12 @@
           <div
             v-else-if="!useSupabaseAuth()"
             ref="profileDropdownEl"
-            class="dropdown profile-dropdown position-relative"
+            class="dropdown profile-dropdown position-relative flex-shrink-0"
           >
             <button
-              id="profile-menu"
+              id="profile-menu-local"
               type="button"
-              class="btn rounded-circle d-inline-flex align-items-center justify-content-center fw-semibold text-white border-0 shadow-sm profile-avatar-btn"
+              class="btn rounded-circle d-inline-flex align-items-center justify-content-center fw-semibold text-white border profile-avatar-btn profile-avatar-btn--ring"
               :class="
                 activeUser === 'daniele'
                   ? 'profile-avatar-btn--daniele'
@@ -165,10 +242,10 @@
               @click.stop="toggleProfileMenu"
             ></button>
             <ul
-              class="dropdown-menu dropdown-menu-start shadow-sm mt-2"
+              class="dropdown-menu dropdown-menu-end shadow-sm mt-2"
               :class="{ show: profileMenuOpen }"
               role="menu"
-              aria-labelledby="profile-menu"
+              aria-labelledby="profile-menu-local"
               :aria-hidden="!profileMenuOpen"
             >
               <li role="none">
@@ -207,69 +284,6 @@
               </li>
             </ul>
           </div>
-
-          <RouterLink
-            class="navbar-brand fw-semibold mb-0 text-white text-decoration-none"
-            to="/"
-            >Lety e Dani</RouterLink
-          >
-        </div>
-
-        <div
-          v-if="showAppSubNav"
-          class="app-subnav w-100 border-top border-light border-opacity-25 mt-2 pt-2"
-        >
-          <ul
-            class="list-unstyled d-flex flex-row flex-wrap gap-1 mb-0 small align-items-start"
-            role="navigation"
-            aria-label="Sezioni principali"
-          >
-            <li class="flex-shrink-0">
-              <RouterLink
-                class="app-subnav-link app-subnav-link--long"
-                active-class="app-subnav-link--active"
-                :to="{ name: 'home' }"
-              >
-                Benvenut* nel nostro magico spazio!
-              </RouterLink>
-            </li>
-            <li>
-              <RouterLink
-                class="app-subnav-link"
-                active-class="app-subnav-link--active"
-                :to="{ name: 'shopping' }"
-              >
-                Lista della spesa
-              </RouterLink>
-            </li>
-            <li>
-              <RouterLink
-                class="app-subnav-link"
-                active-class="app-subnav-link--active"
-                :to="{ name: 'wishlist' }"
-              >
-                Lista dei desideri
-              </RouterLink>
-            </li>
-            <li>
-              <RouterLink
-                class="app-subnav-link"
-                active-class="app-subnav-link--active"
-                :to="{ name: 'todos' }"
-              >
-                Cose da fare
-              </RouterLink>
-            </li>
-            <li>
-              <RouterLink
-                class="app-subnav-link"
-                active-class="app-subnav-link--active"
-                :to="{ name: 'restaurants' }"
-              >
-                Ristoranti
-              </RouterLink>
-            </li>
-          </ul>
         </div>
       </div>
     </nav>
@@ -303,11 +317,16 @@
   }
 
   .profile-avatar-btn {
-    width: 2.25rem;
-    height: 2.25rem;
+    width: 3rem;
+    height: 3rem;
     padding: 0;
     font-size: 0.95rem;
     line-height: 1;
+  }
+
+  .profile-avatar-btn--ring {
+    border-color: rgba(0, 0, 0, 0.12) !important;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
   }
 
   .profile-avatar-btn--daniele {
@@ -347,39 +366,61 @@
     z-index: 1050;
   }
 
-  /* Evitiamo nav-pills di Bootstrap: con .active impone testo bianco anche su sfondo chiaro. */
-  .app-subnav-link {
-    display: inline-block;
-    padding: 0.35rem 0.7rem;
-    border-radius: 0.4rem;
-    color: rgba(255, 255, 255, 0.92);
+  .app-subnav-item {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.1rem;
+    min-width: 3rem;
+    min-height: 3rem;
+    padding: 0.35rem 0.45rem;
+    border-radius: 0.5rem;
+    color: var(--bs-secondary-color);
     text-decoration: none;
+    font-size: 0.65rem;
+    font-weight: 500;
+    line-height: 1.1;
     transition:
       color 0.15s ease,
       background-color 0.15s ease;
   }
 
-  .app-subnav-link--long {
-    max-width: min(100%, 16rem);
-    line-height: 1.3;
+  .app-subnav-item:hover {
+    color: var(--bs-body-color);
+    background-color: var(--bs-secondary-bg);
   }
 
-  .app-subnav-link:hover {
-    color: #fff;
-    background-color: rgba(255, 255, 255, 0.14);
+  .app-subnav-item:focus-visible {
+    outline: 0;
+    box-shadow: 0 0 0 0.2rem rgba(var(--bs-primary-rgb), 0.35);
+    border-radius: 0.5rem;
   }
 
-  .app-subnav-link.app-subnav-link--active,
-  .app-subnav-link.router-link-active {
-    color: #1a1d20;
-    background-color: #fff;
+  .app-subnav-icon {
+    display: flex;
+    line-height: 0;
+    color: currentColor;
+  }
+
+  .app-subnav-label {
+    max-width: 4.5rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: center;
+  }
+
+  .app-subnav-item.app-subnav-item--active,
+  .app-subnav-item.router-link-active {
+    color: var(--bs-primary);
     font-weight: 600;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+    background-color: rgba(var(--bs-primary-rgb), 0.1);
   }
 
-  .app-subnav-link.app-subnav-link--active:hover,
-  .app-subnav-link.router-link-active:hover {
-    color: #1a1d20;
-    background-color: #fff;
+  .app-subnav-item.app-subnav-item--active:hover,
+  .app-subnav-item.router-link-active:hover {
+    color: var(--bs-primary);
+    background-color: rgba(var(--bs-primary-rgb), 0.14);
   }
 </style>

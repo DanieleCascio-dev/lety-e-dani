@@ -46,6 +46,24 @@ body {
   --app-safe-left: env(safe-area-inset-left, 0px);
 }
 
+/* Barra app: padding notch + sottonav scroll orizzontale su mobile */
+.app-top-nav {
+  padding-top: calc(var(--app-safe-top, 0px) + 0.5rem);
+  padding-bottom: 0.35rem;
+}
+
+.app-nav-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+}
+
+.app-nav-scroll::-webkit-scrollbar {
+  display: none;
+  height: 0;
+}
+
 /*
  * Segnaposto colore/forma utente (lista spesa, todo, profilo…).
  * Deve essere globale: textIconClassFor() è usato da più viste; lo scoped della sola lista spesa

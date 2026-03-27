@@ -1,5 +1,8 @@
 <script setup lang="ts">
-import { RouterLink } from 'vue-router'
+import { RouterLink } from "vue-router";
+import NavCartIcon from "@/components/icons/NavCartIcon.vue";
+import NavRestaurantIcon from "@/components/icons/NavRestaurantIcon.vue";
+import NavTodoIcon from "@/components/icons/NavTodoIcon.vue";
 </script>
 
 <template>
@@ -8,55 +11,101 @@ import { RouterLink } from 'vue-router'
       class="container-fluid px-3 px-sm-4 text-center"
       style="max-width: 28rem"
     >
-      <h1 class="h3 fw-semibold mb-3" style="color: black">Lety e Dani</h1>
-      <div class="d-grid gap-2">
-        <RouterLink
-          to="/lista-spesa"
-          class="home-nav-btn btn btn-outline-primary btn-lg w-100 py-3"
-        >
-          Lista della spesa
-        </RouterLink>
-        <RouterLink
-          to="/ristoranti"
-          class="home-nav-btn btn btn-outline-primary btn-lg w-100 py-3"
-        >
-          Ristoranti
-        </RouterLink>
-        <RouterLink
-          to="/todo"
-          class="home-nav-btn btn btn-outline-primary btn-lg w-100 py-3"
-        >
-          Cose da fare
-        </RouterLink>
-      </div>
+      <p class="text-secondary small mb-2 mb-sm-3 lh-sm px-1">
+        Benvenut* nel nostro magico spazio!
+      </p>
+      <h1 class="h5 fw-semibold mb-3 mb-sm-4 text-body">Lety e Dani</h1>
+      <ul class="list-unstyled d-grid gap-2 mb-0">
+        <li>
+          <RouterLink
+            to="/lista-spesa"
+            class="home-tile d-flex align-items-center gap-3 text-decoration-none text-body rounded-3 border bg-white px-3 py-3"
+            aria-label="Lista della spesa"
+          >
+            <span class="home-tile-icon text-primary" aria-hidden="true">
+              <NavCartIcon />
+            </span>
+            <span class="d-flex flex-column min-w-0 text-start flex-grow-1">
+              <span class="fw-semibold">Spesa</span>
+              <span class="small text-secondary d-none d-sm-inline"
+                >Articoli da comprare</span
+              >
+            </span>
+          </RouterLink>
+        </li>
+        <li>
+          <RouterLink
+            to="/ristoranti"
+            class="home-tile d-flex align-items-center gap-3 text-decoration-none text-body rounded-3 border bg-white px-3 py-3"
+            aria-label="Ristoranti"
+          >
+            <span class="home-tile-icon text-primary" aria-hidden="true">
+              <NavRestaurantIcon />
+            </span>
+            <span class="d-flex flex-column min-w-0 text-start flex-grow-1">
+              <span class="fw-semibold">Locali</span>
+              <span class="small text-secondary d-none d-sm-inline"
+                >Mappa e preferiti</span
+              >
+            </span>
+          </RouterLink>
+        </li>
+        <li>
+          <RouterLink
+            to="/todo"
+            class="home-tile d-flex align-items-center gap-3 text-decoration-none text-body rounded-3 border bg-white px-3 py-3"
+            aria-label="Cose da fare"
+          >
+            <span class="home-tile-icon text-primary" aria-hidden="true">
+              <NavTodoIcon />
+            </span>
+            <span class="d-flex flex-column min-w-0 text-start flex-grow-1">
+              <span class="fw-semibold">Todo</span>
+              <span class="small text-secondary d-none d-sm-inline"
+                >Attività e liste</span
+              >
+            </span>
+          </RouterLink>
+        </li>
+      </ul>
     </div>
   </main>
 </template>
 
 <style scoped>
 .home-main {
-  padding-top: 2rem;
+  padding-top: 1.25rem;
   padding-bottom: 3rem;
 }
 
-.home-nav-btn {
+.home-tile {
+  min-height: 3.25rem;
   transition:
     transform 0.1s ease,
-    background-color 0.12s ease,
-    color 0.12s ease,
-    border-color 0.12s ease,
-    box-shadow 0.12s ease;
+    box-shadow 0.12s ease,
+    border-color 0.12s ease;
   user-select: none;
+  border-color: rgba(0, 0, 0, 0.08) !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
-.home-nav-btn:active {
-  transform: scale(0.98);
-  background-color: var(--bs-primary);
-  border-color: var(--bs-primary);
-  color: #fff;
+.home-tile:hover {
+  border-color: rgba(var(--bs-primary-rgb), 0.35) !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 }
 
-.home-nav-btn:focus-visible {
-  box-shadow: 0 0 0 0.25rem rgba(var(--bs-primary-rgb), 0.45);
+.home-tile:active {
+  transform: scale(0.99);
+}
+
+.home-tile:focus-visible {
+  outline: 0;
+  box-shadow: 0 0 0 0.2rem rgba(var(--bs-primary-rgb), 0.35);
+}
+
+.home-tile-icon {
+  display: flex;
+  flex-shrink: 0;
+  line-height: 0;
 }
 </style>

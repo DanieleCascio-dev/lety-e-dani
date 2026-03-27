@@ -15,6 +15,7 @@
     useAppStorage,
   } from "@/composables/useAppStorage";
   import type { GroceryItem } from "@/types/app";
+  import NavSparklesIcon from "@/components/icons/NavSparklesIcon.vue";
 
   const newItem = ref("");
   const {
@@ -47,9 +48,6 @@
   const listMenuOpen = ref(false);
   const listMenuRoot = ref<HTMLElement | null>(null);
 
-  const actionsMenuOpen = ref(false);
-  const actionsMenuRoot = ref<HTMLElement | null>(null);
-
   const createModalOpen = ref(false);
   const newListName = ref("");
 
@@ -67,14 +65,13 @@
   const itemRemoveTargetId = ref<string | null>(null);
   const itemRemoveSubmitting = ref(false);
 
-  const itemEditModalOpen = ref(false);
   const itemEditId = ref<string | null>(null);
   const itemEditText = ref("");
   const itemEditSubmitting = ref(false);
   const itemEditInputRef = ref<HTMLInputElement | null>(null);
 
-  watch(itemEditModalOpen, async (open) => {
-    if (!open) return;
+  watch(itemEditId, async (id) => {
+    if (!id) return;
     await nextTick();
     const el = itemEditInputRef.value;
     if (!el) return;
@@ -90,14 +87,6 @@
     listMenuOpen.value = false;
   }
 
-  function toggleActionsMenu() {
-    actionsMenuOpen.value = !actionsMenuOpen.value;
-  }
-
-  function closeActionsMenu() {
-    actionsMenuOpen.value = false;
-  }
-
   function pickList(id: string) {
     void selectGroceryList(id);
     closeListMenu();
@@ -107,7 +96,6 @@
     newListName.value = "";
     createModalOpen.value = true;
     closeListMenu();
-    closeActionsMenu();
   }
 
   function closeCreateModal() {
@@ -117,7 +105,6 @@
   function openRenameModal() {
     renameListName.value = currentGroceryListMeta.value?.title ?? "";
     renameModalOpen.value = true;
-    closeActionsMenu();
     closeListMenu();
   }
 
@@ -132,10 +119,9 @@
     if (ok) closeRenameModal();
   }
 
-  function onDeleteFromActionsMenu() {
+  function openDeleteListForSelected() {
     const id = selectedGroceryListId.value;
     if (!id) return;
-    closeActionsMenu();
     openDeleteListModal(id);
   }
 
@@ -182,10 +168,6 @@
     if (!itemRemoveSubmitting.value) closeItemRemoveModal();
   }
 
-  function onItemEditBackdrop() {
-    if (!itemEditSubmitting.value) closeItemEditModal();
-  }
-
   async function confirmItemRemove() {
     const id = itemRemoveTargetId.value;
     if (!id) return;
@@ -199,26 +181,64 @@
     }
   }
 
-  function openItemEditModal(item: GroceryItem) {
-    itemEditId.value = item.id;
-    itemEditText.value = item.text;
-    itemEditModalOpen.value = true;
-  }
-
-  function closeItemEditModal() {
-    itemEditModalOpen.value = false;
+  function cancelItemEdit() {
     itemEditId.value = null;
     itemEditText.value = "";
+  }
+
+  async function commitOrCancelInlineEdit() {
+    const id = itemEditId.value;
+    if (!id || itemEditSubmitting.value) return;
+    const row = currentList.value.find((i) => i.id === id);
+    if (!row) {
+      cancelItemEdit();
+      return;
+    }
+    const trimmed = itemEditText.value.trim();
+    if (!trimmed) {
+      cancelItemEdit();
+      return;
+    }
+    if (trimmed === row.text) {
+      cancelItemEdit();
+      return;
+    }
+    await confirmItemEdit();
+  }
+
+  function onItemEditBlur() {
+    window.setTimeout(() => {
+      if (!itemEditId.value) return;
+      void commitOrCancelInlineEdit();
+    }, 0);
+  }
+
+  async function startItemEdit(item: GroceryItem) {
+    if (itemEditId.value === item.id) {
+      await commitOrCancelInlineEdit();
+      return;
+    }
+    if (itemEditId.value) {
+      await commitOrCancelInlineEdit();
+      if (itemEditId.value) return;
+    }
+    itemEditId.value = item.id;
+    itemEditText.value = item.text;
   }
 
   async function confirmItemEdit() {
     const id = itemEditId.value;
     if (!id) return;
+    const trimmed = itemEditText.value.trim();
+    if (!trimmed) {
+      cancelItemEdit();
+      return;
+    }
     itemEditSubmitting.value = true;
     try {
       const ok = await updateGroceryItemText(id, itemEditText.value);
       await nextTick();
-      if (ok && !groceriesError.value) closeItemEditModal();
+      if (ok && !groceriesError.value) cancelItemEdit();
     } finally {
       itemEditSubmitting.value = false;
     }
@@ -246,7 +266,6 @@
     chatListName.value = "";
     chatModalOpen.value = true;
     closeListMenu();
-    closeActionsMenu();
   }
 
   function closeChatModal() {
@@ -276,10 +295,6 @@
       const root = listMenuRoot.value;
       if (root && t instanceof Node && !root.contains(t)) closeListMenu();
     }
-    if (actionsMenuOpen.value) {
-      const root = actionsMenuRoot.value;
-      if (root && t instanceof Node && !root.contains(t)) closeActionsMenu();
-    }
   }
 
   function onDocumentKeydown(ev: KeyboardEvent) {
@@ -288,8 +303,8 @@
       if (!itemRemoveSubmitting.value) closeItemRemoveModal();
       return;
     }
-    if (itemEditModalOpen.value) {
-      if (!itemEditSubmitting.value) closeItemEditModal();
+    if (itemEditId.value) {
+      if (!itemEditSubmitting.value) cancelItemEdit();
       return;
     }
     if (deleteModalOpen.value) {
@@ -309,7 +324,6 @@
       return;
     }
     closeListMenu();
-    closeActionsMenu();
   }
 
   async function refreshShoppingPageData() {
@@ -345,6 +359,13 @@
       groceryListsLoading.value,
   );
 
+  const listToolbarListActionsDisabled = computed(
+    () =>
+      !selectedGroceryListId.value ||
+      groceryListsLoading.value ||
+      !groceryLists.value.length,
+  );
+
   function onGroceryDoneChange(item: GroceryItem, e: Event) {
     const el = e.target as HTMLInputElement;
     void setGroceryItemDone(item.id, el.checked);
@@ -357,61 +378,30 @@
       class="container-fluid px-3 px-sm-4 shopping-inner"
       style="max-width: 32rem"
     >
-      <p class="text-secondary small mb-3 mb-md-4 shopping-intro">
-        <span class="d-none d-sm-inline">Lista della spesa · </span>
-        Aggiungi articoli come
-        <strong>{{ userLabel(activeUser) }}</strong>
-      </p>
 
       <div
         v-if="groceriesError"
-        class="alert alert-warning small py-2 mb-3"
+        class="alert alert-warning small py-2 mb-2"
         role="alert"
       >
         {{ groceriesError }}
       </div>
 
-      <div class="mb-3">
-        <button
-          type="button"
-          class="btn btn-outline-secondary w-100"
-          :disabled="chatListButtonDisabled || chatGroceryLoading"
-          @click="openChatModal"
-        >
-          <span
-            v-if="chatGroceryLoading"
-            class="spinner-border spinner-border-sm me-2"
-            role="status"
-            aria-hidden="true"
-          />
-          Crea lista spesa con Chat
-        </button>
-        <p
-          v-if="!isGroceryCloud"
-          class="form-text small text-secondary mb-0 mt-1"
-        >
-          Connettiti con Supabase e accedi per usare la lista generata dall’AI.
-        </p>
-        <p
-          v-else-if="!appUserSessionValid"
-          class="form-text small text-secondary mb-0 mt-1"
-        >
-          Effettua il login per creare una lista con Chat.
-        </p>
-      </div>
-
-      <div class="mb-4">
-        <span class="form-label small text-secondary d-block mb-1"
+      <div class="mb-3 shopping-list-controls">
+        <span class="form-label small text-secondary d-block mb-1 fw-semibold"
           >Lista attiva</span
         >
         <div
-          class="d-flex flex-column flex-sm-row gap-2 align-items-stretch align-items-sm-start"
+          class="d-flex flex-column flex-sm-row gap-2 align-items-stretch align-items-sm-center shopping-list-controls-row"
         >
-          <div ref="listMenuRoot" class="dropdown flex-grow-1 list-picker">
+          <div
+            ref="listMenuRoot"
+            class="dropdown flex-grow-1 min-w-0 list-picker shopping-list-picker-wrap"
+          >
             <button
               id="list-picker-btn"
               type="button"
-              class="btn btn-light border text-start w-100 d-flex align-items-center justify-content-between gap-2 py-2"
+              class="btn btn-sm btn-light border text-start w-100 d-flex align-items-center justify-content-between gap-2 py-2 shopping-list-picker-btn"
               :disabled="!groceryLists.length || groceryListsLoading"
               aria-haspopup="true"
               :aria-expanded="listMenuOpen"
@@ -462,80 +452,102 @@
               </li>
             </ul>
           </div>
-          <div class="d-flex gap-2 shrink-0 align-items-stretch">
+          <div
+            class="d-flex gap-1 align-items-stretch shopping-list-toolbar"
+          >
             <button
               type="button"
-              class="btn btn-outline-primary"
+              class="btn btn-sm btn-outline-primary shopping-toolbar-btn"
               :disabled="groceryListsLoading"
               @click="openCreateModal"
             >
-              Nuova lista
+              Nuova
             </button>
-            <div ref="actionsMenuRoot" class="dropdown list-actions-dropdown">
-              <button
-                id="list-actions-menu"
-                type="button"
-                class="btn btn-outline-secondary d-inline-flex align-items-center justify-content-center px-2 h-100"
-                :disabled="
-                  !selectedGroceryListId ||
-                  groceryListsLoading ||
-                  !groceryLists.length
-                "
-                aria-haspopup="true"
-                :aria-expanded="actionsMenuOpen"
-                aria-label="Altre azioni sulla lista"
-                @click.stop="toggleActionsMenu"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="20"
-                  height="20"
-                  viewBox="0 0 24 24"
-                  fill="currentColor"
+            <button
+              type="button"
+              class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center justify-content-center shopping-toolbar-btn shopping-toolbar-icon-btn shopping-ai-btn"
+              :disabled="chatListButtonDisabled || chatGroceryLoading"
+              aria-label="Crea una nuova lista della spesa con l’assistenza AI"
+              title="Crea lista con AI"
+              @click="openChatModal"
+            >
+              <span class="shopping-ai-btn-inner">
+                <span
+                  v-if="chatGroceryLoading"
+                  class="spinner-border spinner-border-sm shopping-ai-btn-spinner"
+                  role="status"
                   aria-hidden="true"
-                >
-                  <circle cx="12" cy="6" r="2" />
-                  <circle cx="12" cy="12" r="2" />
-                  <circle cx="12" cy="18" r="2" />
-                </svg>
-              </button>
-              <ul
-                class="dropdown-menu dropdown-menu-end shadow-sm py-1"
-                :class="{ show: actionsMenuOpen }"
-                role="menu"
-                aria-labelledby="list-actions-menu"
+                />
+                <NavSparklesIcon v-else class="shopping-ai-btn-icon" />
+              </span>
+            </button>
+            <button
+              type="button"
+              class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center justify-content-center shopping-toolbar-btn shopping-toolbar-icon-btn"
+              :disabled="listToolbarListActionsDisabled"
+              title="Modifica nome lista"
+              aria-label="Modifica nome lista"
+              @click="openRenameModal"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                fill="currentColor"
+                viewBox="0 0 16 16"
+                aria-hidden="true"
               >
-                <li role="none">
-                  <button
-                    type="button"
-                    class="dropdown-item"
-                    role="menuitem"
-                    @click="openRenameModal"
-                  >
-                    Modifica nome
-                  </button>
-                </li>
-                <li role="none">
-                  <button
-                    type="button"
-                    class="dropdown-item text-danger"
-                    role="menuitem"
-                    @click="onDeleteFromActionsMenu"
-                  >
-                    Elimina lista
-                  </button>
-                </li>
-              </ul>
-            </div>
+                <path
+                  d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5 13.5 4.5 14.5 3.5 12.5 1.5 11.207 2.5zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293l6.5-6.5zm-9.761 5.175-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 0 1 5 12.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.468-.325z"
+                />
+              </svg>
+            </button>
+            <button
+              type="button"
+              class="btn btn-sm btn-outline-danger d-inline-flex align-items-center justify-content-center shopping-toolbar-btn shopping-toolbar-icon-btn"
+              :disabled="listToolbarListActionsDisabled"
+              title="Elimina lista"
+              aria-label="Elimina lista"
+              @click="openDeleteListForSelected"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                fill="currentColor"
+                viewBox="0 0 16 16"
+                aria-hidden="true"
+              >
+                <path
+                  d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"
+                />
+                <path
+                  fill-rule="evenodd"
+                  d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"
+                />
+              </svg>
+            </button>
           </div>
         </div>
+        <p
+          v-if="!isGroceryCloud"
+          class="form-text text-secondary mb-0 mt-1 small"
+        >
+          Accedi con Supabase per usare la creazione lista con AI.
+        </p>
+        <p
+          v-else-if="!appUserSessionValid"
+          class="form-text text-secondary mb-0 mt-1 small"
+        >
+          Effettua il login per usare la creazione lista con AI.
+        </p>
       </div>
 
       <div
         v-if="!groceryLists.length && !groceryListsLoading"
-        class="alert alert-light border mb-4 small"
+        class="alert alert-light border mb-3 small py-2"
       >
-        Nessuna lista ancora. Tocca <strong>Nuova lista</strong> per iniziare.
+        Nessuna lista ancora. Tocca <strong>Nuova</strong> per iniziare.
       </div>
 
       <Teleport to="body">
@@ -580,14 +592,14 @@
               <div class="modal-footer">
                 <button
                   type="button"
-                  class="btn btn-secondary"
+                  class="btn btn-sm btn-secondary"
                   @click="closeCreateModal"
                 >
                   Annulla
                 </button>
                 <button
                   type="button"
-                  class="btn btn-primary"
+                  class="btn btn-sm btn-primary"
                   @click="confirmCreateList"
                 >
                   Crea
@@ -644,14 +656,14 @@
               <div class="modal-footer">
                 <button
                   type="button"
-                  class="btn btn-secondary"
+                  class="btn btn-sm btn-secondary"
                   @click="closeRenameModal"
                 >
                   Annulla
                 </button>
                 <button
                   type="button"
-                  class="btn btn-primary"
+                  class="btn btn-sm btn-primary"
                   @click="confirmRenameList"
                 >
                   Salva
@@ -705,7 +717,7 @@
               <div class="modal-footer">
                 <button
                   type="button"
-                  class="btn btn-secondary"
+                  class="btn btn-sm btn-secondary"
                   :disabled="deleteListSubmitting"
                   @click="closeDeleteModal"
                 >
@@ -713,7 +725,7 @@
                 </button>
                 <button
                   type="button"
-                  class="btn btn-danger"
+                  class="btn btn-sm btn-danger"
                   :disabled="deleteListSubmitting"
                   @click="confirmDeleteList"
                 >
@@ -787,7 +799,7 @@
               <div class="modal-footer">
                 <button
                   type="button"
-                  class="btn btn-secondary"
+                  class="btn btn-sm btn-secondary"
                   :disabled="chatGroceryLoading"
                   @click="closeChatModal"
                 >
@@ -795,7 +807,7 @@
                 </button>
                 <button
                   type="button"
-                  class="btn btn-primary"
+                  class="btn btn-sm btn-primary"
                   :disabled="!chatListName.trim() || chatGroceryLoading"
                   @click="confirmChatList"
                 >
@@ -810,42 +822,44 @@
       <Teleport to="body">
         <div
           v-if="itemRemoveModalOpen"
-          class="modal fade show d-block shopping-modal"
+          class="modal fade show d-block shopping-remove-modal"
           tabindex="-1"
-          style="background-color: rgba(0, 0, 0, 0.4)"
+          style="background-color: rgba(0, 0, 0, 0.28)"
           role="dialog"
           aria-modal="true"
           aria-labelledby="remove-item-title"
           @click.self="onItemRemoveBackdrop"
         >
-          <div class="modal-dialog modal-dialog-centered shopping-modal-dialog">
-            <div class="modal-content" @click.stop>
-              <div class="modal-header">
-                <h2 id="remove-item-title" class="modal-title h5 text-danger">
-                  Rimuovi articolo
+          <div
+            class="modal-dialog modal-dialog-centered modal-sm shopping-remove-modal-dialog"
+          >
+            <div class="modal-content border-0 shadow-sm" @click.stop>
+              <div class="modal-header border-0 py-2 px-3 pb-0">
+                <h2 id="remove-item-title" class="modal-title fs-6 fw-semibold mb-0">
+                  Rimuovere dalla lista?
                 </h2>
                 <button
                   type="button"
-                  class="btn-close"
+                  class="btn-close shopping-remove-modal-close"
                   aria-label="Chiudi"
                   :disabled="itemRemoveSubmitting"
                   @click="closeItemRemoveModal"
                 />
               </div>
-              <div class="modal-body">
-                <p class="mb-0">
-                  Rimuovere
-                  <strong v-if="itemRemoveTargetLabel">{{
-                    itemRemoveTargetLabel
-                  }}</strong>
-                  <span v-else>questo articolo</span>
-                  dalla lista?
+              <div class="modal-body py-2 px-3 pt-1 small text-secondary">
+                <p class="mb-0 text-break">
+                  <template v-if="itemRemoveTargetLabel">
+                    <span class="text-body">{{ itemRemoveTargetLabel }}</span>
+                  </template>
+                  <template v-else>Questo articolo</template>
                 </p>
               </div>
-              <div class="modal-footer">
+              <div
+                class="modal-footer border-0 py-2 px-3 pt-0 gap-2 justify-content-end flex-nowrap"
+              >
                 <button
                   type="button"
-                  class="btn btn-secondary"
+                  class="btn btn-sm btn-light border"
                   :disabled="itemRemoveSubmitting"
                   @click="closeItemRemoveModal"
                 >
@@ -853,13 +867,13 @@
                 </button>
                 <button
                   type="button"
-                  class="btn btn-danger"
+                  class="btn btn-sm btn-danger"
                   :disabled="itemRemoveSubmitting"
                   @click="confirmItemRemove"
                 >
                   <span
                     v-if="itemRemoveSubmitting"
-                    class="spinner-border spinner-border-sm me-2"
+                    class="spinner-border spinner-border-sm me-1"
                     role="status"
                     aria-hidden="true"
                   />
@@ -871,93 +885,21 @@
         </div>
       </Teleport>
 
-      <Teleport to="body">
-        <div
-          v-if="itemEditModalOpen"
-          class="modal fade show d-block"
-          tabindex="-1"
-          style="background-color: rgba(0, 0, 0, 0.4)"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="edit-item-title"
-          @click.self="onItemEditBackdrop"
-        >
-          <div class="modal-dialog modal-dialog-centered shopping-modal-dialog">
-            <div class="modal-content" @click.stop>
-              <div class="modal-header">
-                <h2 id="edit-item-title" class="modal-title h5">
-                  Modifica articolo
-                </h2>
-                <button
-                  type="button"
-                  class="btn-close"
-                  aria-label="Chiudi"
-                  :disabled="itemEditSubmitting"
-                  @click="closeItemEditModal"
-                />
-              </div>
-              <div class="modal-body">
-                <label for="edit-item-text" class="form-label">Nome</label>
-                <input
-                  id="edit-item-text"
-                  ref="itemEditInputRef"
-                  v-model="itemEditText"
-                  type="text"
-                  class="form-control form-control-lg"
-                  placeholder="Nome articolo…"
-                  maxlength="200"
-                  autocomplete="off"
-                  enterkeyhint="done"
-                  inputmode="text"
-                  autocapitalize="sentences"
-                  :disabled="itemEditSubmitting"
-                  @keydown.enter.prevent="confirmItemEdit"
-                />
-              </div>
-              <div class="modal-footer">
-                <button
-                  type="button"
-                  class="btn btn-secondary"
-                  :disabled="itemEditSubmitting"
-                  @click="closeItemEditModal"
-                >
-                  Annulla
-                </button>
-                <button
-                  type="button"
-                  class="btn btn-primary"
-                  :disabled="!itemEditText.trim() || itemEditSubmitting"
-                  @click="confirmItemEdit"
-                >
-                  <span
-                    v-if="itemEditSubmitting"
-                    class="spinner-border spinner-border-sm me-2"
-                    role="status"
-                    aria-hidden="true"
-                  />
-                  Salva
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </Teleport>
-
-      <div class="shopping-add-form mb-3 mb-md-4">
+      <div class="shopping-add-form mb-3">
         <form class="mb-0" @submit.prevent="onSubmit">
           <label
             for="grocery-input"
-            class="form-label fw-medium mb-2 d-block small text-secondary"
+            class="form-label fw-semibold mb-1 d-block small text-secondary"
           >
             Nuovo articolo
           </label>
-          <div class="input-group input-group-lg">
+          <div class="input-group input-group-sm">
             <input
               id="grocery-input"
               v-model="newItem"
               type="text"
               class="form-control"
-              placeholder="Inserisci nome articolo"
+              placeholder="Nome articolo…"
               autocomplete="off"
               autocapitalize="sentences"
               enterkeyhint="done"
@@ -965,7 +907,7 @@
               :disabled="!selectedGroceryListId"
             />
             <button
-              class="btn btn-primary px-3 px-sm-4 touch-manipulation"
+              class="btn btn-primary touch-manipulation"
               type="submit"
               :disabled="!newItem.trim() || !selectedGroceryListId"
             >
@@ -977,35 +919,76 @@
 
       <div
         v-if="currentList.length"
-        class="d-flex flex-wrap align-items-center gap-2 gap-sm-3 small mb-3 text-secondary shopping-quick-actions"
+        class="mb-1 d-flex justify-content-end shopping-bulk-action"
       >
-        <span class="me-1 align-self-center">Selezione rapida</span>
         <button
           type="button"
-          class="btn btn-outline-secondary btn-sm py-2 touch-manipulation"
-          :disabled="!hasOpenItems"
-          @click="markAllGroceryItemsDone(true)"
+          class="btn btn-sm btn-link text-secondary text-decoration-none shopping-bulk-btn touch-manipulation"
+          :disabled="!hasOpenItems && !hasDoneItems"
+          :title="
+            hasOpenItems
+              ? 'Segna tutti gli articoli come comprati'
+              : 'Togli la spunta da tutti gli articoli'
+          "
+          :aria-label="
+            hasOpenItems
+              ? 'Segna tutti gli articoli'
+              : 'Deseleziona tutti gli articoli'
+          "
+          @click="
+            hasOpenItems
+              ? markAllGroceryItemsDone(true)
+              : markAllGroceryItemsDone(false)
+          "
         >
-          Segna tutti
-        </button>
-        <button
-          type="button"
-          class="btn btn-outline-secondary btn-sm py-2 touch-manipulation"
-          :disabled="!hasDoneItems"
-          @click="markAllGroceryItemsDone(false)"
-        >
-          Deseleziona tutti
+          <span
+            v-if="hasOpenItems"
+            class="shopping-bulk-btn-inner"
+            aria-hidden="true"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              fill="currentColor"
+              viewBox="0 0 16 16"
+            >
+              <path
+                d="M10.97 4.97a.75.75 0 0 1 1.07 1.05l-3.99 4.99a.75.75 0 0 1-1.08.02L4.324 9.384a.75.75 0 1 1 1.06-1.06l2.094 2.093 3.473-4.425a.267.267 0 0 1 .02-.022z"
+              />
+              <path
+                d="M14.736 3.97a.733.733 0 0 1 1.047 0c.286.289.29.756.01 1.05l-3.5 4.5a.678.678 0 0 1-.944 0l-1.95-1.95a.75.75 0 1 1 1.06-1.06l1.47 1.47 2.262-2.27a.75.75 0 0 1 1.06 0z"
+              />
+            </svg>
+          </span>
+          <span v-else class="shopping-bulk-btn-inner" aria-hidden="true">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              fill="currentColor"
+              viewBox="0 0 16 16"
+            >
+              <path
+                fill-rule="evenodd"
+                d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"
+              />
+              <path
+                d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"
+              />
+            </svg>
+          </span>
         </button>
       </div>
 
       <ul
         v-if="currentList.length"
-        class="list-group list-group-flush shadow-sm rounded overflow-hidden"
+        class="list-group list-group-flush shadow-sm rounded overflow-hidden shopping-items-list"
       >
         <li
           v-for="item in currentList"
           :key="item.id"
-          class="list-group-item d-flex align-items-center gap-2 gap-sm-3 py-3 min-touch shopping-list-row touch-manipulation"
+          class="list-group-item d-flex align-items-center gap-2 gap-sm-3 py-2 py-sm-3 shopping-list-row touch-manipulation shopping-list-row--compact"
           :class="{ 'bg-body-tertiary': item.done }"
         >
           <div
@@ -1018,41 +1001,76 @@
               :checked="item.done"
               @change="onGroceryDoneChange(item, $event)"
             />
-            <label
-              class="form-check-label user-select-none d-flex align-items-center gap-2 flex-wrap min-w-0 flex-grow-1"
-              :for="`g-${item.id}`"
+            <div
+              class="min-w-0 flex-grow-1 d-flex flex-column align-items-stretch gap-1"
             >
-              <span
-                class="item-text min-w-0"
-                :class="{
-                  'text-decoration-line-through text-secondary': item.done,
-                }"
+              <label
+                v-if="itemEditId !== item.id"
+                class="form-check-label user-select-none d-flex align-items-center gap-2 flex-wrap min-w-0 mb-0"
+                :for="`g-${item.id}`"
               >
-                {{ item.text }}
-              </span>
-              <span
-                class="shrink-0 ms-1"
-                :class="textIconClassFor(item.addedBy)"
-                :style="textIconStyleFor(item.addedBy)"
-                :title="`Aggiunto da ${userLabel(item.addedBy)}`"
-                aria-hidden="true"
-              />
-            </label>
+                <span
+                  class="item-text min-w-0"
+                  :class="{
+                    'text-decoration-line-through text-secondary': item.done,
+                  }"
+                >
+                  {{ item.text }}
+                </span>
+                <span
+                  class="shrink-0 ms-1"
+                  :class="textIconClassFor(item.addedBy)"
+                  :style="textIconStyleFor(item.addedBy)"
+                  :title="`Aggiunto da ${userLabel(item.addedBy)}`"
+                  aria-hidden="true"
+                />
+              </label>
+              <div
+                v-else
+                class="d-flex align-items-center gap-2 min-w-0 w-100"
+              >
+                <input
+                  ref="itemEditInputRef"
+                  v-model="itemEditText"
+                  type="text"
+                  class="form-control form-control-sm shopping-item-edit-input"
+                  placeholder="Nome articolo…"
+                  maxlength="200"
+                  autocomplete="off"
+                  enterkeyhint="done"
+                  inputmode="text"
+                  autocapitalize="sentences"
+                  :disabled="itemEditSubmitting"
+                  :aria-label="`Modifica ${item.text}`"
+                  @keydown.enter.prevent="confirmItemEdit"
+                  @keydown.escape.prevent="cancelItemEdit"
+                  @blur="onItemEditBlur"
+                />
+                <span
+                  class="shrink-0"
+                  :class="textIconClassFor(item.addedBy)"
+                  :style="textIconStyleFor(item.addedBy)"
+                  :title="`Aggiunto da ${userLabel(item.addedBy)}`"
+                  aria-hidden="true"
+                />
+              </div>
+            </div>
           </div>
           <div
             class="d-flex align-items-center gap-1 shrink-0 align-self-center"
           >
             <button
+              v-if="itemEditId !== item.id"
               type="button"
               class="btn btn-outline-secondary btn-sm d-inline-flex align-items-center justify-content-center btn-icon-touch touch-manipulation"
               title="Modifica nome"
               aria-label="Modifica nome articolo"
-              @click.stop="openItemEditModal(item)"
+              @click.stop="startItemEdit(item)"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
-                width="18"
-                height="18"
+                width="16"
+                height="16"
                 fill="currentColor"
                 viewBox="0 0 16 16"
                 aria-hidden="true"
@@ -1071,8 +1089,8 @@
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
-                width="18"
-                height="18"
+                width="16"
+                height="16"
                 fill="currentColor"
                 viewBox="0 0 16 16"
                 aria-hidden="true"
@@ -1105,10 +1123,10 @@
       <div v-if="currentList.some((i) => i.done)" class="mt-2 mb-1 text-center">
         <button
           type="button"
-          class="btn btn-outline-secondary btn-sm py-2 px-3 touch-manipulation"
+          class="btn btn-outline-secondary btn-sm touch-manipulation"
           @click="clearDoneGroceryItems"
         >
-          Rimuovi articoli segnati
+          Rimuovi segnati
         </button>
       </div>
     </div>
@@ -1126,12 +1144,135 @@
     padding-bottom: 0.25rem;
   }
 
-  .min-touch {
-    min-height: 3.25rem;
-  }
-
   .shopping-main {
     padding-top: 0.25rem;
+  }
+
+  .shopping-list-controls {
+    padding-bottom: 0.125rem;
+  }
+
+  /* La riga lista + toolbar: priorità di spazio al selettore lista */
+  .shopping-list-controls-row {
+    min-width: 0;
+  }
+
+  .shopping-list-picker-wrap {
+    flex: 1 1 0%;
+    min-width: 0;
+  }
+
+  .shopping-list-picker-btn {
+    min-height: 2.5rem;
+  }
+
+  /* Toolbar larghezza contenuto; Nuova compatta; icone fisse */
+  .shopping-list-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    align-items: stretch;
+    width: auto;
+    max-width: 100%;
+    flex: 0 0 auto;
+  }
+
+  .shopping-list-toolbar > .shopping-toolbar-btn:first-of-type {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
+  .shopping-list-toolbar > .shopping-toolbar-icon-btn {
+    flex: 0 0 var(--shopping-toolbar-icon-size, 2.375rem);
+    width: var(--shopping-toolbar-icon-size, 2.375rem);
+    min-width: var(--shopping-toolbar-icon-size, 2.375rem);
+    max-width: var(--shopping-toolbar-icon-size, 2.375rem);
+    box-sizing: border-box;
+  }
+
+  .shopping-toolbar-btn {
+    min-height: 2.3125rem;
+    padding-left: 0.35rem;
+    padding-right: 0.35rem;
+  }
+
+  .shopping-toolbar-icon-btn {
+    padding-left: 0.25rem;
+    padding-right: 0.25rem;
+  }
+
+  .shopping-toolbar-icon-btn svg {
+    display: block;
+  }
+
+  .shopping-ai-btn {
+    line-height: 0;
+  }
+
+  .shopping-ai-btn-inner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 0;
+    width: 100%;
+    height: 100%;
+    min-height: 1rem;
+  }
+
+  .shopping-ai-btn-icon,
+  .shopping-ai-btn :deep(svg) {
+    display: block;
+    width: 1rem;
+    height: 1rem;
+    flex-shrink: 0;
+    margin: 0;
+    vertical-align: middle;
+  }
+
+  .shopping-ai-btn-spinner {
+    flex-shrink: 0;
+    vertical-align: middle;
+  }
+
+  .shopping-list-row--compact {
+    min-height: 2.75rem;
+  }
+
+  .shopping-bulk-action {
+    min-height: 0;
+  }
+
+  .shopping-bulk-btn {
+    padding: 0.15rem 0.35rem;
+    line-height: 0;
+    border: 0;
+  }
+
+  .shopping-bulk-btn:hover:not(:disabled),
+  .shopping-bulk-btn:focus-visible:not(:disabled) {
+    color: var(--bs-primary) !important;
+  }
+
+  .shopping-bulk-btn:disabled {
+    opacity: 0.45;
+    pointer-events: none;
+  }
+
+  .shopping-bulk-btn-inner {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 0;
+  }
+
+  .shopping-bulk-btn-inner svg {
+    display: block;
+  }
+
+  .shopping-item-edit-input {
+    flex: 1 1 auto;
+    min-width: 0;
+    width: 100%;
   }
 
   .touch-manipulation {
@@ -1139,10 +1280,10 @@
   }
 
   .btn-icon-touch {
-    min-width: 2.75rem;
-    min-height: 2.75rem;
-    padding-left: 0.5rem;
-    padding-right: 0.5rem;
+    min-width: 2.25rem;
+    min-height: 2.25rem;
+    padding-left: 0.35rem;
+    padding-right: 0.35rem;
   }
 
   .shopping-check {
@@ -1193,6 +1334,25 @@
 
   .list-picker-row:hover {
     background-color: var(--bs-light, #f8f9fa);
+  }
+
+  /* Modale rimozione articolo: compatto, centrato (no bottom sheet a tutta larghezza) */
+  :global(.shopping-remove-modal) {
+    padding-left: max(1rem, var(--app-safe-left));
+    padding-right: max(1rem, var(--app-safe-right));
+    padding-bottom: max(1rem, var(--app-safe-bottom));
+    padding-top: max(0.75rem, var(--app-safe-top));
+  }
+
+  :global(.shopping-remove-modal .shopping-remove-modal-dialog) {
+    margin: 0.5rem auto;
+    max-width: min(18rem, calc(100% - 1.5rem));
+  }
+
+  :global(.shopping-remove-modal .shopping-remove-modal-close) {
+    padding: 0.35rem;
+    margin: -0.15rem -0.15rem -0.15rem auto;
+    opacity: 0.65;
   }
 
   /* Teleported modals: safe area + sheet su telefono */
@@ -1247,7 +1407,7 @@
     :global(.shopping-modal .modal-footer .btn) {
       width: 100%;
       margin: 0;
-      min-height: 2.75rem;
+      min-height: 2.5rem;
     }
   }
 </style>
