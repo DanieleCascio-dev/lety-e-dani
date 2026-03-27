@@ -3,7 +3,11 @@
  *
  * Dove mettere la chiave:
  * - Locale: file `.env.local` nella root del repo → `OPENAI_API_KEY=sk-...`
- * - Produzione: `supabase secrets set OPENAI_API_KEY=...` per la funzione `chat-grocery-list`.
+ * - Produzione: `supabase secrets set OPENAI_API_KEY=...` per le funzioni che usano OpenAI.
+ * - Ricerca ristoranti su Google Maps: `supabase secrets set GOOGLE_PLACES_API_KEY=...`
+ *   (Places API New abilitata sul progetto Google Cloud; accetta anche `GOOGLE_MAPS_API_KEY`).
+ * - Mappa nel browser (RestaurantMiniMap): `.env.local` → `VITE_GOOGLE_MAPS_API_KEY=...`
+ *   con «Maps JavaScript API» abilitata e restrizione HTTP referrer al dominio del sito.
  *
  * Non usare `VITE_OPENAI_*`: Vite esporrebbe la variabile al browser.
  */

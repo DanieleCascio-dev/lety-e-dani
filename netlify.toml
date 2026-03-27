@@ -13,4 +13,4 @@
 # chiavi pubbliche previste dal client Supabase — vanno escluse dallo scan.
 # NON aggiungere OPENAI_API_KEY qui: non serve al sito statico (solo Supabase secrets per le Edge Functions).
 [build.environment]
-  SECRETS_SCAN_OMIT_KEYS = "VITE_SUPABASE_ANON_KEY,VITE_SUPABASE_URL"
+  SECRETS_SCAN_OMIT_KEYS = "VITE_SUPABASE_ANON_KEY,VITE_SUPABASE_URL,VITE_GOOGLE_MAPS_API_KEY"

@@ -1,8 +1,11 @@
 /// <reference types="vite/client" />
+/// <reference types="google.maps" />
 
 interface ImportMetaEnv {
   readonly VITE_SUPABASE_URL?: string
   readonly VITE_SUPABASE_ANON_KEY?: string
+  /** Maps JavaScript API (browser): stessa chiave Google Cloud con API abilitata + restrizione siti web. */
+  readonly VITE_GOOGLE_MAPS_API_KEY?: string
 }
 
 interface ImportMeta {
