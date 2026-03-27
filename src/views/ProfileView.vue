@@ -1,5 +1,6 @@
 <script setup lang="ts">
-  import { computed, onMounted, ref, watch } from "vue";
+  import { computed, nextTick, ref, watch } from "vue";
+  import { useRoute } from "vue-router";
   import { getSupabaseClient } from "@/lib/supabase";
   import { authSession } from "@/auth/authSession";
   import {
@@ -9,7 +10,8 @@
   } from "@/composables/useAppStorage";
   import type { IconShape } from "@/types/app";
 
-  const { activeUser, userProfiles } = useAppStorage();
+  const route = useRoute();
+  const { activeUser, userProfiles, profileFor } = useAppStorage();
 
   const currentEmail = computed(() => authSession.value?.user?.email ?? "");
 
@@ -37,19 +39,43 @@
     { value: "star", label: "Stella" },
   ];
 
+  /** `<input type="color">` richiede #rrggbb; normalizza per evitare stati incoerenti. */
+  function hexForColorInput(raw: string | null, fallback: string): string {
+    const s = raw?.trim();
+    if (s && /^#[0-9A-Fa-f]{6}$/.test(s)) return s.toLowerCase();
+    return fallback.toLowerCase();
+  }
+
   function applyProfileToForm() {
-    const p = userProfiles.value[activeUser.value];
+    const p = profileFor(activeUser.value);
+    const fallback =
+      activeUser.value === "daniele" ? "#6b1f3d" : "#c9a227";
     const hasCustom = Boolean(p.iconColor);
     useDefaultIconColor.value = !hasCustom;
-    iconColorHex.value =
-      p.iconColor ?? (activeUser.value === "daniele" ? "#6b1f3d" : "#c9a227");
+    iconColorHex.value = hexForColorInput(p.iconColor, fallback);
     iconShape.value = p.iconShape ?? "circle";
   }
 
-  onMounted(async () => {
+  async function syncProfileFormFromStorage() {
     await refreshAppUserProfileFromDb();
+    await nextTick();
+    if (route.name !== "profile") return;
     applyProfileToForm();
     emailNew.value = currentEmail.value;
+  }
+
+  watch(
+    () => route.name,
+    (name) => {
+      if (name !== "profile") return;
+      void syncProfileFormFromStorage();
+    },
+    { immediate: true },
+  );
+
+  watch(activeUser, () => {
+    if (route.name !== "profile") return;
+    applyProfileToForm();
   });
 
   watch(currentEmail, (v) => {

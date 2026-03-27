@@ -205,7 +205,7 @@ function mapListRow(r: {
   }
 }
 
-const activeUser = ref<UserId>('daniele')
+export const activeUser = ref<UserId>('daniele')
 const userProfiles = ref<Record<UserId, UserProfile>>(loadProfiles())
 const groceriesLoading = ref(false)
 const groceriesError = ref<string | null>(null)

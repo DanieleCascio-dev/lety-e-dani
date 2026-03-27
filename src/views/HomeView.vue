@@ -24,6 +24,12 @@ import { HOME_FEATURE_ANNOUNCEMENT_ID } from '@/config/featureAnnouncements'
         >
           Ristoranti
         </RouterLink>
+        <RouterLink
+          to="/todo"
+          class="home-nav-btn btn btn-outline-primary btn-lg w-100 py-3"
+        >
+          Cose da fare
+        </RouterLink>
       </div>
     </div>
 

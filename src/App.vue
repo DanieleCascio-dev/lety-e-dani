@@ -1,7 +1,8 @@
 <script setup lang="ts">
-  import { computed, onMounted, onUnmounted, ref } from "vue";
+  import { computed, onMounted, onUnmounted, ref, watch } from "vue";
   import { RouterLink, RouterView, useRoute, useRouter } from "vue-router";
   import { useAppStorage, signOutUser } from "@/composables/useAppStorage";
+  import { resetTodoState } from "@/composables/useTodoLists";
   import { getSupabaseClient } from "@/lib/supabase";
   import type { UserId } from "@/types/app";
   import danyAvatarUrl from "@/assets/propic/dany.jpeg";
@@ -13,7 +14,11 @@
 
   const route = useRoute();
   const router = useRouter();
-  const { activeUser, setActiveUser } = useAppStorage();
+  const { activeUser, setActiveUser, appUserSessionValid } = useAppStorage();
+
+  watch(appUserSessionValid, (ok) => {
+    if (!ok) resetTodoState();
+  });
 
   function useSupabaseAuth(): boolean {
     return getSupabaseClient() !== null;
@@ -242,6 +247,15 @@
                 :to="{ name: 'wishlist' }"
               >
                 Lista dei desideri
+              </RouterLink>
+            </li>
+            <li>
+              <RouterLink
+                class="app-subnav-link"
+                active-class="app-subnav-link--active"
+                :to="{ name: 'todos' }"
+              >
+                Cose da fare
               </RouterLink>
             </li>
             <li>

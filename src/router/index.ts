@@ -29,6 +29,11 @@ const router = createRouter({
       component: () => import('../views/WishListView.vue'),
     },
     {
+      path: '/todo',
+      name: 'todos',
+      component: () => import('../views/TodoListView.vue'),
+    },
+    {
       path: '/ristoranti',
       name: 'restaurants',
       component: () => import('../views/RestaurantsView.vue'),

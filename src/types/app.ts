@@ -37,3 +37,9 @@ export interface GroceryItem {
   /** Presente in modalità locale multi-lista. */
   listId?: string
 }
+
+/** Contenitore todo (stessa forma della lista spesa). */
+export type TodoListMeta = GroceryListMeta
+
+/** Voce todo (stessa forma di un articolo spesa). */
+export type TodoItem = GroceryItem

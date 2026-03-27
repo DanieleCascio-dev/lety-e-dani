@@ -8,65 +8,56 @@
     ref,
     watch,
   } from "vue";
+  import type { TodoItem } from "@/types/app";
   import {
-    ensureGroceryRealtimeConnected,
-    groceryListDisplayName,
-    refreshGroceryData,
-    useAppStorage,
-  } from "@/composables/useAppStorage";
-  import type { GroceryItem } from "@/types/app";
+    ensureTodoRealtimeConnected,
+    refreshTodoData,
+    useTodoLists,
+  } from "@/composables/useTodoLists";
+  import { useAppStorage } from "@/composables/useAppStorage";
 
   const newItem = ref("");
   const {
-    activeUser,
-    currentList,
-    groceryLists,
-    groceryListsLoading,
-    selectedGroceryListId,
-    currentGroceryListMeta,
-    groceriesLoading,
-    groceriesError,
-    chatGroceryLoading,
     appUserSessionValid,
-    isGroceryCloud,
-    textIconClassFor,
-    textIconStyleFor,
-    createGroceryList,
-    createChatGroceryList,
-    renameGroceryList,
-    deleteGroceryList,
-    selectGroceryList,
-    markAllGroceryItemsDone,
-    addGroceryItem,
-    setGroceryItemDone,
-    updateGroceryItemText,
-    removeGroceryItem,
-    clearDoneGroceryItems,
-  } = useAppStorage();
+    todoLists,
+    todoListsLoading,
+    selectedTodoListId,
+    currentTodoListMeta,
+    todosLoading,
+    todosError,
+    currentTodoList,
+    isTodoCloud,
+    todoListDisplayName,
+    selectTodoList,
+    createTodoList,
+    renameTodoList,
+    deleteTodoList,
+    addTodoItem,
+    setTodoItemDone,
+    updateTodoItemText,
+    removeTodoItem,
+    clearDoneTodoItems,
+    markAllTodoItemsDone,
+    startTodoSync,
+  } = useTodoLists();
+
+  const { textIconClassFor, textIconStyleFor } = useAppStorage();
 
   const listMenuOpen = ref(false);
   const listMenuRoot = ref<HTMLElement | null>(null);
-
   const actionsMenuOpen = ref(false);
   const actionsMenuRoot = ref<HTMLElement | null>(null);
 
   const createModalOpen = ref(false);
   const newListName = ref("");
-
   const renameModalOpen = ref(false);
   const renameListName = ref("");
-
-  const chatModalOpen = ref(false);
-  const chatListName = ref("");
-
   const deleteModalOpen = ref(false);
   const deleteTargetId = ref<string | null>(null);
   const deleteListSubmitting = ref(false);
-
   const itemRemoveModalOpen = ref(false);
   const itemRemoveTargetId = ref<string | null>(null);
   const itemRemoveSubmitting = ref(false);
-
   const itemEditModalOpen = ref(false);
   const itemEditId = ref<string | null>(null);
   const itemEditText = ref("");
@@ -81,6 +72,10 @@
     el.focus();
     el.select();
   });
+
+  function userLabel(id: string) {
+    return id === "daniele" ? "Daniele" : "Letizia";
+  }
 
   function toggleListMenu() {
     listMenuOpen.value = !listMenuOpen.value;
@@ -99,7 +94,7 @@
   }
 
   function pickList(id: string) {
-    void selectGroceryList(id);
+    void selectTodoList(id);
     closeListMenu();
   }
 
@@ -115,7 +110,7 @@
   }
 
   function openRenameModal() {
-    renameListName.value = currentGroceryListMeta.value?.title ?? "";
+    renameListName.value = currentTodoListMeta.value?.title ?? "";
     renameModalOpen.value = true;
     closeActionsMenu();
     closeListMenu();
@@ -126,14 +121,14 @@
   }
 
   async function confirmRenameList() {
-    const id = selectedGroceryListId.value;
+    const id = selectedTodoListId.value;
     if (!id) return;
-    const ok = await renameGroceryList(id, renameListName.value);
+    const ok = await renameTodoList(id, renameListName.value);
     if (ok) closeRenameModal();
   }
 
   function onDeleteFromActionsMenu() {
-    const id = selectedGroceryListId.value;
+    const id = selectedTodoListId.value;
     if (!id) return;
     closeActionsMenu();
     openDeleteListModal(id);
@@ -157,18 +152,17 @@
   const deleteTargetLabel = computed(() => {
     const id = deleteTargetId.value;
     if (!id) return "";
-    const list = groceryLists.value.find((l) => l.id === id);
-    return list ? groceryListDisplayName(list) : "";
+    const list = todoLists.value.find((l) => l.id === id);
+    return list ? todoListDisplayName(list) : "";
   });
 
   const itemRemoveTargetLabel = computed(() => {
     const id = itemRemoveTargetId.value;
     if (!id) return "";
-    const row = currentList.value.find((i) => i.id === id);
-    return row?.text ?? "";
+    return currentTodoList.value.find((i) => i.id === id)?.text ?? "";
   });
 
-  function openItemRemoveModal(item: GroceryItem) {
+  function openItemRemoveModal(item: TodoItem) {
     itemRemoveTargetId.value = item.id;
     itemRemoveModalOpen.value = true;
   }
@@ -182,24 +176,20 @@
     if (!itemRemoveSubmitting.value) closeItemRemoveModal();
   }
 
-  function onItemEditBackdrop() {
-    if (!itemEditSubmitting.value) closeItemEditModal();
-  }
-
   async function confirmItemRemove() {
     const id = itemRemoveTargetId.value;
     if (!id) return;
     itemRemoveSubmitting.value = true;
     try {
-      await removeGroceryItem(id);
+      await removeTodoItem(id);
       await nextTick();
-      if (!groceriesError.value) closeItemRemoveModal();
+      if (!todosError.value) closeItemRemoveModal();
     } finally {
       itemRemoveSubmitting.value = false;
     }
   }
 
-  function openItemEditModal(item: GroceryItem) {
+  function openItemEditModal(item: TodoItem) {
     itemEditId.value = item.id;
     itemEditText.value = item.text;
     itemEditModalOpen.value = true;
@@ -211,17 +201,26 @@
     itemEditText.value = "";
   }
 
+  function onItemEditBackdrop() {
+    if (!itemEditSubmitting.value) closeItemEditModal();
+  }
+
   async function confirmItemEdit() {
     const id = itemEditId.value;
     if (!id) return;
     itemEditSubmitting.value = true;
     try {
-      const ok = await updateGroceryItemText(id, itemEditText.value);
+      const ok = await updateTodoItemText(id, itemEditText.value);
       await nextTick();
-      if (ok && !groceriesError.value) closeItemEditModal();
+      if (ok && !todosError.value) closeItemEditModal();
     } finally {
       itemEditSubmitting.value = false;
     }
+  }
+
+  async function confirmCreateList() {
+    const ok = await createTodoList(newListName.value);
+    if (ok) closeCreateModal();
   }
 
   async function confirmDeleteList() {
@@ -229,46 +228,30 @@
     if (!id) return;
     deleteListSubmitting.value = true;
     try {
-      await deleteGroceryList(id);
+      await deleteTodoList(id);
       await nextTick();
-      if (!groceriesError.value) closeDeleteModal();
+      if (!todosError.value) closeDeleteModal();
     } finally {
       deleteListSubmitting.value = false;
     }
   }
 
-  async function confirmCreateList() {
-    const ok = await createGroceryList(newListName.value);
-    if (ok) closeCreateModal();
-  }
-
-  function openChatModal() {
-    chatListName.value = "";
-    chatModalOpen.value = true;
-    closeListMenu();
-    closeActionsMenu();
-  }
-
-  function closeChatModal() {
-    chatModalOpen.value = false;
-  }
-
-  async function confirmChatList() {
-    const name = chatListName.value.trim();
-    if (!name) return;
-    try {
-      await createChatGroceryList(name);
-      await nextTick();
-      if (!groceriesError.value) closeChatModal();
-    } catch {
-      /* error già in groceriesError o console da useAppStorage */
-    }
-  }
-
   async function onSubmit() {
-    const ok = await addGroceryItem(newItem.value);
+    const ok = await addTodoItem(newItem.value);
     if (ok) newItem.value = "";
   }
+
+  function onTodoDoneChange(item: TodoItem, e: Event) {
+    const el = e.target as HTMLInputElement;
+    void setTodoItemDone(item.id, el.checked);
+  }
+
+  const hasOpenItems = computed(() =>
+    currentTodoList.value.some((i) => !i.done),
+  );
+  const hasDoneItems = computed(() =>
+    currentTodoList.value.some((i) => i.done),
+  );
 
   function onDocumentPointerDown(ev: PointerEvent) {
     const t = ev.target;
@@ -304,100 +287,43 @@
       closeRenameModal();
       return;
     }
-    if (chatModalOpen.value) {
-      closeChatModal();
-      return;
-    }
     closeListMenu();
     closeActionsMenu();
   }
 
-  async function refreshShoppingPageData() {
-    if (!isGroceryCloud.value || !appUserSessionValid.value) return;
-    await refreshGroceryData({ silent: true });
-    ensureGroceryRealtimeConnected();
+  async function refreshTodoPageData() {
+    if (!isTodoCloud.value || !appUserSessionValid.value) return;
+    await refreshTodoData({ silent: true });
+    ensureTodoRealtimeConnected();
   }
 
   onMounted(() => {
-    void refreshShoppingPageData();
+    if (appUserSessionValid.value) void startTodoSync();
+    ensureTodoRealtimeConnected();
     document.addEventListener("pointerdown", onDocumentPointerDown, true);
     document.addEventListener("keydown", onDocumentKeydown, true);
   });
 
   onActivated(() => {
-    void refreshShoppingPageData();
+    void refreshTodoPageData();
   });
 
   onUnmounted(() => {
     document.removeEventListener("pointerdown", onDocumentPointerDown, true);
     document.removeEventListener("keydown", onDocumentKeydown, true);
   });
-
-  const userLabel = (id: string) => (id === "daniele" ? "Daniele" : "Letizia");
-
-  const hasOpenItems = computed(() => currentList.value.some((i) => !i.done));
-  const hasDoneItems = computed(() => currentList.value.some((i) => i.done));
-
-  const chatListButtonDisabled = computed(
-    () =>
-      !isGroceryCloud.value ||
-      !appUserSessionValid.value ||
-      groceryListsLoading.value,
-  );
-
-  function onGroceryDoneChange(item: GroceryItem, e: Event) {
-    const el = e.target as HTMLInputElement;
-    void setGroceryItemDone(item.id, el.checked);
-  }
 </script>
 
 <template>
-  <main class="shopping-main shopping-page">
-    <div
-      class="container-fluid px-3 px-sm-4 shopping-inner"
-      style="max-width: 32rem"
-    >
-      <p class="text-secondary small mb-3 mb-md-4 shopping-intro">
-        <span class="d-none d-sm-inline">Lista della spesa · </span>
-        Aggiungi articoli come
-        <strong>{{ userLabel(activeUser) }}</strong>
-      </p>
-
+  <main class="todo-main shopping-main pb-5">
+    <div class="container-fluid px-3 px-sm-4 todo-page">
+      <h1 class="h5 fw-semibold mb-3">Cose da fare</h1>
       <div
-        v-if="groceriesError"
-        class="alert alert-warning small py-2 mb-3"
-        role="alert"
+        v-if="todosError"
+        class="alert alert-warning py-2 small mb-3"
+        role="status"
       >
-        {{ groceriesError }}
-      </div>
-
-      <div class="mb-3">
-        <button
-          type="button"
-          class="btn btn-outline-secondary w-100"
-          :disabled="chatListButtonDisabled || chatGroceryLoading"
-          @click="openChatModal"
-        >
-          <span
-            v-if="chatGroceryLoading"
-            class="spinner-border spinner-border-sm me-2"
-            role="status"
-            aria-hidden="true"
-          />
-          Crea lista spesa con Chat
-        </button>
-        <p
-          v-if="!isGroceryCloud"
-          class="form-text small text-secondary mb-0 mt-1"
-        >
-          Connettiti con Supabase e accedi per usare la lista generata dall’AI.
-        </p>
-        <p
-          v-else-if="!appUserSessionValid"
-          class="form-text small text-secondary mb-0 mt-1"
-        >
-          Effettua il login per creare una lista con Chat.
-        </p>
+        {{ todosError }}
       </div>
 
       <div class="mb-4">
@@ -409,27 +335,27 @@
         >
           <div ref="listMenuRoot" class="dropdown flex-grow-1 list-picker">
             <button
-              id="list-picker-btn"
+              id="todo-list-picker-btn"
               type="button"
-              class="btn btn-light border text-start w-100 d-flex align-items-center justify-content-between gap-2 py-2"
-              :disabled="!groceryLists.length || groceryListsLoading"
+              class="btn btn-light border text-start w-100 d-flex align-items-center justify-content-between gap-2 py-2 min-touch"
+              :disabled="!todoLists.length || todoListsLoading"
               aria-haspopup="true"
               :aria-expanded="listMenuOpen"
               @click.stop="toggleListMenu"
             >
               <span
-                v-if="currentGroceryListMeta"
+                v-if="currentTodoListMeta"
                 class="d-flex align-items-center gap-2 min-w-0"
               >
                 <span
                   class="shrink-0"
-                  :class="textIconClassFor(currentGroceryListMeta.createdBy)"
-                  :style="textIconStyleFor(currentGroceryListMeta.createdBy)"
-                  :title="`Creata da ${userLabel(currentGroceryListMeta.createdBy)}`"
+                  :class="textIconClassFor(currentTodoListMeta.createdBy)"
+                  :style="textIconStyleFor(currentTodoListMeta.createdBy)"
+                  :title="`Creata da ${userLabel(currentTodoListMeta.createdBy)}`"
                   aria-hidden="true"
                 />
                 <span class="text-truncate">{{
-                  groceryListDisplayName(currentGroceryListMeta)
+                  todoListDisplayName(currentTodoListMeta)
                 }}</span>
               </span>
               <span v-else class="text-secondary">—</span>
@@ -440,12 +366,12 @@
             <ul
               class="dropdown-menu shadow-sm w-100 py-1"
               :class="{ show: listMenuOpen }"
-              aria-labelledby="list-picker-btn"
+              aria-labelledby="todo-list-picker-btn"
             >
-              <li v-for="list in groceryLists" :key="list.id" class="px-1">
+              <li v-for="list in todoLists" :key="list.id" class="px-1">
                 <button
                   type="button"
-                  class="btn btn-link text-body text-decoration-none w-100 text-start py-2 px-2 d-flex align-items-center gap-2 min-w-0 list-picker-row rounded border-0"
+                  class="btn btn-link text-body text-decoration-none w-100 text-start py-2 px-2 d-flex align-items-center gap-2 min-w-0 list-picker-row rounded border-0 min-touch"
                   @click="pickList(list.id)"
                 >
                   <span
@@ -456,7 +382,7 @@
                     aria-hidden="true"
                   />
                   <span class="text-truncate small">{{
-                    groceryListDisplayName(list)
+                    todoListDisplayName(list)
                   }}</span>
                 </button>
               </li>
@@ -465,21 +391,19 @@
           <div class="d-flex gap-2 shrink-0 align-items-stretch">
             <button
               type="button"
-              class="btn btn-outline-primary"
-              :disabled="groceryListsLoading"
+              class="btn btn-outline-primary min-touch"
+              :disabled="todoListsLoading"
               @click="openCreateModal"
             >
               Nuova lista
             </button>
             <div ref="actionsMenuRoot" class="dropdown list-actions-dropdown">
               <button
-                id="list-actions-menu"
+                id="todo-list-actions-menu"
                 type="button"
-                class="btn btn-outline-secondary d-inline-flex align-items-center justify-content-center px-2 h-100"
+                class="btn btn-outline-secondary d-inline-flex align-items-center justify-content-center px-2 h-100 min-touch"
                 :disabled="
-                  !selectedGroceryListId ||
-                  groceryListsLoading ||
-                  !groceryLists.length
+                  !selectedTodoListId || todoListsLoading || !todoLists.length
                 "
                 aria-haspopup="true"
                 :aria-expanded="actionsMenuOpen"
@@ -503,7 +427,7 @@
                 class="dropdown-menu dropdown-menu-end shadow-sm py-1"
                 :class="{ show: actionsMenuOpen }"
                 role="menu"
-                aria-labelledby="list-actions-menu"
+                aria-labelledby="todo-list-actions-menu"
               >
                 <li role="none">
                   <button
@@ -532,7 +456,7 @@
       </div>
 
       <div
-        v-if="!groceryLists.length && !groceryListsLoading"
+        v-if="!todoLists.length && !todoListsLoading"
         class="alert alert-light border mb-4 small"
       >
         Nessuna lista ancora. Tocca <strong>Nuova lista</strong> per iniziare.
@@ -546,13 +470,15 @@
           style="background-color: rgba(0, 0, 0, 0.4)"
           role="dialog"
           aria-modal="true"
-          aria-labelledby="new-list-title"
+          aria-labelledby="todo-new-list-title"
           @click.self="closeCreateModal"
         >
           <div class="modal-dialog modal-dialog-centered shopping-modal-dialog">
             <div class="modal-content" @click.stop>
               <div class="modal-header">
-                <h2 id="new-list-title" class="modal-title h5">Nuova lista</h2>
+                <h2 id="todo-new-list-title" class="modal-title h5">
+                  Nuova lista
+                </h2>
                 <button
                   type="button"
                   class="btn-close"
@@ -561,20 +487,21 @@
                 />
               </div>
               <div class="modal-body">
-                <label for="new-list-name" class="form-label">Nome lista</label>
+                <label for="todo-new-list-name" class="form-label"
+                  >Nome lista</label
+                >
                 <input
-                  id="new-list-name"
+                  id="todo-new-list-name"
                   v-model="newListName"
                   type="text"
                   class="form-control"
-                  placeholder="Es. Weekend, Casa al mare…"
+                  placeholder="Es. Lavoro, Casa…"
                   maxlength="80"
                   autocomplete="off"
                   @keydown.enter.prevent="confirmCreateList"
                 />
                 <p class="form-text small mb-0">
-                  Il nome apparirà come <strong>Nome · data</strong>. Puoi
-                  lasciarlo vuoto: vedrai solo «Lista del …».
+                  Opzionale: viene mostrato come <strong>Nome · data</strong>.
                 </p>
               </div>
               <div class="modal-footer">
@@ -606,13 +533,13 @@
           style="background-color: rgba(0, 0, 0, 0.4)"
           role="dialog"
           aria-modal="true"
-          aria-labelledby="rename-list-title"
+          aria-labelledby="todo-rename-list-title"
           @click.self="closeRenameModal"
         >
           <div class="modal-dialog modal-dialog-centered shopping-modal-dialog">
             <div class="modal-content" @click.stop>
               <div class="modal-header">
-                <h2 id="rename-list-title" class="modal-title h5">
+                <h2 id="todo-rename-list-title" class="modal-title h5">
                   Modifica nome lista
                 </h2>
                 <button
@@ -623,23 +550,18 @@
                 />
               </div>
               <div class="modal-body">
-                <label for="rename-list-name" class="form-label"
+                <label for="todo-rename-list-name" class="form-label"
                   >Nome lista</label
                 >
                 <input
-                  id="rename-list-name"
+                  id="todo-rename-list-name"
                   v-model="renameListName"
                   type="text"
                   class="form-control"
-                  placeholder="Es. Weekend, Casa al mare…"
                   maxlength="80"
                   autocomplete="off"
                   @keydown.enter.prevent="confirmRenameList"
                 />
-                <p class="form-text small mb-0">
-                  Il nome viene mostrato come <strong>Nome · data</strong>.
-                  Lascia vuoto per usare solo «Lista del …».
-                </p>
               </div>
               <div class="modal-footer">
                 <button
@@ -670,13 +592,16 @@
           style="background-color: rgba(0, 0, 0, 0.4)"
           role="dialog"
           aria-modal="true"
-          aria-labelledby="delete-list-title"
+          aria-labelledby="todo-delete-list-title"
           @click.self="onDeleteModalBackdrop"
         >
           <div class="modal-dialog modal-dialog-centered shopping-modal-dialog">
             <div class="modal-content" @click.stop>
               <div class="modal-header">
-                <h2 id="delete-list-title" class="modal-title h5 text-danger">
+                <h2
+                  id="todo-delete-list-title"
+                  class="modal-title h5 text-danger"
+                >
                   Elimina lista
                 </h2>
                 <button
@@ -688,18 +613,13 @@
                 />
               </div>
               <div class="modal-body">
-                <p class="mb-2">
-                  Vuoi eliminare la lista
+                <p class="mb-0">
+                  Eliminare
                   <strong v-if="deleteTargetLabel">{{
                     deleteTargetLabel
                   }}</strong>
-                  <span v-else>selezionata</span>
-                  ?
-                </p>
-                <p class="small text-secondary mb-0">
-                  Verranno rimossi dal database anche
-                  <strong>tutti gli articoli</strong> collegati a questa lista.
-                  L’azione non si può annullare.
+                  <span v-else>questa lista</span>
+                  ? Tutte le attività saranno rimosse.
                 </p>
               </div>
               <div class="modal-footer">
@@ -723,83 +643,7 @@
                     role="status"
                     aria-hidden="true"
                   />
-                  Elimina definitivamente
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </Teleport>
-
-      <Teleport to="body">
-        <div
-          v-if="chatModalOpen"
-          class="modal fade show d-block shopping-modal"
-          tabindex="-1"
-          style="background-color: rgba(0, 0, 0, 0.4)"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="chat-list-title"
-          @click.self="closeChatModal"
-        >
-          <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content" @click.stop>
-              <div class="modal-header">
-                <h2 id="chat-list-title" class="modal-title h5">
-                  Lista con Chat
-                </h2>
-                <button
-                  type="button"
-                  class="btn-close"
-                  aria-label="Chiudi"
-                  @click="closeChatModal"
-                />
-              </div>
-              <div class="modal-body">
-                <label for="chat-list-name" class="form-label"
-                  >Nome da aggiungere alla lista</label
-                >
-                <input
-                  id="chat-list-name"
-                  v-model="chatListName"
-                  type="text"
-                  class="form-control"
-                  placeholder="Es. settimanale, casa mare…"
-                  maxlength="73"
-                  autocomplete="off"
-                  :disabled="chatGroceryLoading"
-                  @keydown.enter.prevent="confirmChatList"
-                />
-                <p class="form-text small mb-0">
-                  Verrà creata una lista intitolata
-                  <strong>chat — nome che scegli — data</strong>
-                  (nel titolo salviamo <code>chat - nome</code>; la data è
-                  quella di creazione, come per le altre liste).
-                </p>
-                <p class="form-text small text-secondary mb-0 mt-2">
-                  L’AI analizza gli articoli già presenti nel database
-                  (frequenze) e propone una nuova lista. L’operazione può
-                  richiedere <strong>fino a un minuto o due</strong>: non
-                  chiudere il modale finché non compare un messaggio di errore o
-                  la lista non si aggiorna.
-                </p>
-              </div>
-              <div class="modal-footer">
-                <button
-                  type="button"
-                  class="btn btn-secondary"
-                  :disabled="chatGroceryLoading"
-                  @click="closeChatModal"
-                >
-                  Annulla
-                </button>
-                <button
-                  type="button"
-                  class="btn btn-primary"
-                  :disabled="!chatListName.trim() || chatGroceryLoading"
-                  @click="confirmChatList"
-                >
-                  Crea lista
+                  Elimina
                 </button>
               </div>
             </div>
@@ -815,14 +659,17 @@
           style="background-color: rgba(0, 0, 0, 0.4)"
           role="dialog"
           aria-modal="true"
-          aria-labelledby="remove-item-title"
+          aria-labelledby="todo-remove-item-title"
           @click.self="onItemRemoveBackdrop"
         >
           <div class="modal-dialog modal-dialog-centered shopping-modal-dialog">
             <div class="modal-content" @click.stop>
               <div class="modal-header">
-                <h2 id="remove-item-title" class="modal-title h5 text-danger">
-                  Rimuovi articolo
+                <h2
+                  id="todo-remove-item-title"
+                  class="modal-title h5 text-danger"
+                >
+                  Rimuovi attività
                 </h2>
                 <button
                   type="button"
@@ -838,8 +685,7 @@
                   <strong v-if="itemRemoveTargetLabel">{{
                     itemRemoveTargetLabel
                   }}</strong>
-                  <span v-else>questo articolo</span>
-                  dalla lista?
+                  <span v-else>questa attività</span>?
                 </p>
               </div>
               <div class="modal-footer">
@@ -874,19 +720,19 @@
       <Teleport to="body">
         <div
           v-if="itemEditModalOpen"
-          class="modal fade show d-block"
+          class="modal fade show d-block shopping-modal"
           tabindex="-1"
           style="background-color: rgba(0, 0, 0, 0.4)"
           role="dialog"
           aria-modal="true"
-          aria-labelledby="edit-item-title"
+          aria-labelledby="todo-edit-item-title"
           @click.self="onItemEditBackdrop"
         >
           <div class="modal-dialog modal-dialog-centered shopping-modal-dialog">
             <div class="modal-content" @click.stop>
               <div class="modal-header">
-                <h2 id="edit-item-title" class="modal-title h5">
-                  Modifica articolo
+                <h2 id="todo-edit-item-title" class="modal-title h5">
+                  Modifica attività
                 </h2>
                 <button
                   type="button"
@@ -897,19 +743,18 @@
                 />
               </div>
               <div class="modal-body">
-                <label for="edit-item-text" class="form-label">Nome</label>
+                <label for="todo-edit-item-text" class="form-label"
+                  >Testo</label
+                >
                 <input
-                  id="edit-item-text"
+                  id="todo-edit-item-text"
                   ref="itemEditInputRef"
                   v-model="itemEditText"
                   type="text"
                   class="form-control form-control-lg"
-                  placeholder="Nome articolo…"
                   maxlength="200"
                   autocomplete="off"
                   enterkeyhint="done"
-                  inputmode="text"
-                  autocapitalize="sentences"
                   :disabled="itemEditSubmitting"
                   @keydown.enter.prevent="confirmItemEdit"
                 />
@@ -943,31 +788,31 @@
         </div>
       </Teleport>
 
-      <div class="shopping-add-form mb-3 mb-md-4">
+      <div class="todo-add-form mb-3 mb-md-4">
         <form class="mb-0" @submit.prevent="onSubmit">
           <label
-            for="grocery-input"
+            for="todo-input"
             class="form-label fw-medium mb-2 d-block small text-secondary"
           >
-            Nuovo articolo
+            Nuova attività
           </label>
           <div class="input-group input-group-lg">
             <input
-              id="grocery-input"
+              id="todo-input"
               v-model="newItem"
               type="text"
               class="form-control"
-              placeholder="Inserisci nome articolo"
+              placeholder="Cosa c’è da fare?"
               autocomplete="off"
               autocapitalize="sentences"
               enterkeyhint="done"
               maxlength="200"
-              :disabled="!selectedGroceryListId"
+              :disabled="!selectedTodoListId"
             />
             <button
-              class="btn btn-primary px-3 px-sm-4 touch-manipulation"
+              class="btn btn-primary px-3 px-sm-4 touch-manipulation min-touch"
               type="submit"
-              :disabled="!newItem.trim() || !selectedGroceryListId"
+              :disabled="!newItem.trim() || !selectedTodoListId"
             >
               Aggiungi
             </button>
@@ -976,51 +821,51 @@
       </div>
 
       <div
-        v-if="currentList.length"
-        class="d-flex flex-wrap align-items-center gap-2 gap-sm-3 small mb-3 text-secondary shopping-quick-actions"
+        v-if="currentTodoList.length"
+        class="d-flex flex-wrap align-items-center gap-2 gap-sm-3 small mb-3 text-secondary"
       >
         <span class="me-1 align-self-center">Selezione rapida</span>
         <button
           type="button"
-          class="btn btn-outline-secondary btn-sm py-2 touch-manipulation"
+          class="btn btn-outline-secondary btn-sm py-2 touch-manipulation min-touch"
           :disabled="!hasOpenItems"
-          @click="markAllGroceryItemsDone(true)"
+          @click="markAllTodoItemsDone(true)"
         >
           Segna tutti
         </button>
         <button
           type="button"
-          class="btn btn-outline-secondary btn-sm py-2 touch-manipulation"
+          class="btn btn-outline-secondary btn-sm py-2 touch-manipulation min-touch"
           :disabled="!hasDoneItems"
-          @click="markAllGroceryItemsDone(false)"
+          @click="markAllTodoItemsDone(false)"
         >
           Deseleziona tutti
         </button>
       </div>
 
       <ul
-        v-if="currentList.length"
+        v-if="currentTodoList.length"
         class="list-group list-group-flush shadow-sm rounded overflow-hidden"
       >
         <li
-          v-for="item in currentList"
+          v-for="item in currentTodoList"
           :key="item.id"
-          class="list-group-item d-flex align-items-center gap-2 gap-sm-3 py-3 min-touch shopping-list-row touch-manipulation"
+          class="list-group-item d-flex align-items-center gap-2 gap-sm-3 py-3 min-touch todo-list-row touch-manipulation"
           :class="{ 'bg-body-tertiary': item.done }"
         >
           <div
-            class="form-check m-0 flex-grow-1 d-flex align-items-start shopping-item-check"
+            class="form-check m-0 flex-grow-1 d-flex align-items-start todo-item-check"
           >
             <input
-              :id="`g-${item.id}`"
-              class="form-check-input shopping-check flex-shrink-0"
+              :id="`todo-${item.id}`"
+              class="form-check-input todo-check flex-shrink-0"
               type="checkbox"
               :checked="item.done"
-              @change="onGroceryDoneChange(item, $event)"
+              @change="onTodoDoneChange(item, $event)"
             />
             <label
               class="form-check-label user-select-none d-flex align-items-center gap-2 flex-wrap min-w-0 flex-grow-1"
-              :for="`g-${item.id}`"
+              :for="`todo-${item.id}`"
             >
               <span
                 class="item-text min-w-0"
@@ -1045,8 +890,8 @@
             <button
               type="button"
               class="btn btn-outline-secondary btn-sm d-inline-flex align-items-center justify-content-center btn-icon-touch touch-manipulation"
-              title="Modifica nome"
-              aria-label="Modifica nome articolo"
+              title="Modifica"
+              aria-label="Modifica attività"
               @click.stop="openItemEditModal(item)"
             >
               <svg
@@ -1066,7 +911,7 @@
               type="button"
               class="btn btn-outline-danger btn-sm d-inline-flex align-items-center justify-content-center btn-icon-touch touch-manipulation"
               title="Rimuovi"
-              aria-label="Rimuovi articolo"
+              aria-label="Rimuovi attività"
               @click.stop="openItemRemoveModal(item)"
             >
               <svg
@@ -1090,25 +935,28 @@
         </li>
       </ul>
       <p
-        v-else-if="groceriesLoading || groceryListsLoading"
+        v-else-if="todosLoading || todoListsLoading"
         class="text-center text-secondary py-5 mb-0"
       >
         Caricamento…
       </p>
       <p
-        v-else-if="selectedGroceryListId"
+        v-else-if="selectedTodoListId"
         class="text-center text-secondary py-5 mb-0"
       >
-        Nessun articolo. Aggiungi il primo nel campo sopra.
+        Nessuna attività in questa lista. Aggiungi la prima sopra.
       </p>
 
-      <div v-if="currentList.some((i) => i.done)" class="mt-2 mb-1 text-center">
+      <div
+        v-if="currentTodoList.some((i) => i.done)"
+        class="mt-2 mb-1 text-center"
+      >
         <button
           type="button"
-          class="btn btn-outline-secondary btn-sm py-2 px-3 touch-manipulation"
-          @click="clearDoneGroceryItems"
+          class="btn btn-outline-secondary btn-sm py-2 px-3 touch-manipulation min-touch"
+          @click="clearDoneTodoItems"
         >
-          Rimuovi articoli segnati
+          Rimuovi completate
         </button>
       </div>
     </div>
@@ -1116,22 +964,16 @@
 </template>
 
 <style scoped>
-  .shopping-page {
-    min-height: 100dvh;
-    padding-top: max(0.35rem, var(--app-safe-top));
-    padding-bottom: max(0.75rem, var(--app-safe-bottom));
+  .todo-main {
+    padding-top: 0.5rem;
   }
 
-  .shopping-inner {
-    padding-bottom: 0.25rem;
+  .todo-page {
+    max-width: 42rem;
   }
 
   .min-touch {
     min-height: 3.25rem;
-  }
-
-  .shopping-main {
-    padding-top: 0.25rem;
   }
 
   .touch-manipulation {
@@ -1145,57 +987,28 @@
     padding-right: 0.5rem;
   }
 
-  .shopping-check {
+  .todo-check {
     width: 1.35rem;
     height: 1.35rem;
     margin-top: 0.2rem;
     flex-shrink: 0;
   }
 
-  /* Spazio tra checkbox e nome (Bootstrap usa padding-left sul .form-check) */
-  .shopping-item-check {
+  .todo-item-check {
     padding-left: 0;
     gap: 0.75rem;
   }
 
-  .shopping-item-check .form-check-input {
+  .todo-item-check .form-check-input {
     float: none;
     margin-left: 0;
   }
 
-  .shopping-list-row {
+  .todo-list-row {
     transition: background-color 0.12s ease;
   }
 
-  .shopping-list-row:active {
-    filter: brightness(0.97);
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .shopping-list-row {
-      transition: none;
-    }
-  }
-
-  .shrink-0 {
-    flex-shrink: 0;
-  }
-
-  .min-w-0 {
-    min-width: 0;
-  }
-
-  .list-picker .dropdown-menu {
-    max-height: min(70dvh, 28rem);
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  .list-picker-row:hover {
-    background-color: var(--bs-light, #f8f9fa);
-  }
-
-  /* Teleported modals: safe area + sheet su telefono */
+  /* Stessi aggiustamenti modale lista spesa (safe area, sheet su mobile) */
   :global(.shopping-modal) {
     padding-left: var(--app-safe-left);
     padding-right: var(--app-safe-right);
@@ -1230,11 +1043,6 @@
       overflow: hidden;
       display: flex;
       flex-direction: column;
-    }
-
-    :global(.shopping-modal .modal-dialog-scrollable .modal-body) {
-      overflow-y: auto;
-      -webkit-overflow-scrolling: touch;
     }
 
     :global(.shopping-modal .modal-footer) {
