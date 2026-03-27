@@ -1,5 +1,14 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import {
+  computed,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  onUnmounted,
+  ref,
+  watch,
+} from 'vue'
+import { useRoute } from 'vue-router'
 import { getSupabaseClient } from '@/lib/supabase'
 import { useAppStorage } from '@/composables/useAppStorage'
 import { useVeganRestaurantSearch } from '@/composables/useVeganRestaurantSearch'
@@ -14,6 +23,10 @@ import type {
 } from '@/types/restaurants'
 
 const { activeUser, profileFor } = useAppStorage()
+const route = useRoute()
+
+/** Evita race: più loadSaved in parallelo o completamento dopo navigazione via. */
+let loadSavedSeq = 0
 
 const { loading: searchLoading, error: searchError, data: searchData, search } =
   useVeganRestaurantSearch()
@@ -159,22 +172,24 @@ function detailsToItem(d: PlaceDetailsResult): VeganRestaurantSearchItem {
 }
 
 async function loadSaved() {
+  const seq = ++loadSavedSeq
   listError.value = null
-  const sb = getSupabaseClient()
-  if (!sb) {
-    savedList.value = []
-    listError.value =
-      'Salvare i ristoranti richiede Supabase e login. Configura .env.local e accedi.'
-    return
-  }
   listLoading.value = true
   try {
+    const sb = getSupabaseClient()
+    if (!sb) {
+      savedList.value = []
+      listError.value =
+        'Salvare i ristoranti richiede Supabase e login. Configura .env.local e accedi.'
+      return
+    }
     const { data, error } = await sb
       .from('saved_restaurants')
       .select(
         'id, created_at, created_by, name, maps_url, rating, place_id, address, category_label, google_rating, google_review_count, extra_notes, latitude, longitude',
       )
       .order('created_at', { ascending: false })
+    if (seq !== loadSavedSeq) return
     if (error) {
       listError.value = error.message
       savedList.value = []
@@ -184,7 +199,7 @@ async function loadSaved() {
       mapRow(row as Parameters<typeof mapRow>[0]),
     )
   } finally {
-    listLoading.value = false
+    if (seq === loadSavedSeq) listLoading.value = false
   }
 }
 
@@ -454,12 +469,29 @@ async function runSearch() {
   await search(userPos.value.lat, userPos.value.lng, r)
 }
 
+watch(
+  () => route.name,
+  (name) => {
+    if (name === 'restaurants') void loadSaved()
+  },
+  { immediate: true },
+)
+
+function onPageShowRestaurants(ev: PageTransitionEvent) {
+  if (ev.persisted && route.name === 'restaurants') void loadSaved()
+}
+
+onBeforeUnmount(() => {
+  loadSavedSeq += 1
+})
+
 onMounted(() => {
-  void loadSaved()
+  window.addEventListener('pageshow', onPageShowRestaurants)
   document.addEventListener('keydown', onDocumentKeydownRestaurants, true)
 })
 
 onUnmounted(() => {
+  window.removeEventListener('pageshow', onPageShowRestaurants)
   document.removeEventListener('keydown', onDocumentKeydownRestaurants, true)
 })
 </script>
