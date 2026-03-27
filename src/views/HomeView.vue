@@ -1,7 +1,5 @@
 <script setup lang="ts">
 import { RouterLink } from 'vue-router'
-import FeatureAnnouncementModal from '@/components/FeatureAnnouncementModal.vue'
-import { HOME_FEATURE_ANNOUNCEMENT_ID } from '@/config/featureAnnouncements'
 </script>
 
 <template>
@@ -32,22 +30,6 @@ import { HOME_FEATURE_ANNOUNCEMENT_ID } from '@/config/featureAnnouncements'
         </RouterLink>
       </div>
     </div>
-
-    <FeatureAnnouncementModal :announcement-id="HOME_FEATURE_ANNOUNCEMENT_ID">
-      <template #title>Bentornat*!</template>
-      <p class="mb-2 fw-semibold">Ecco cosa c’è di nuovo:</p>
-      <ul class="mb-0 ps-3">
-        <li class="mb-2">
-          <strong>Ristoranti</strong>: nuova sezione per cercare locali vegani/vegetariani con
-          <strong>Google Places</strong> intorno alla tua posizione, vedere i risultati su
-          <strong>mappa</strong> e salvare i preferiti in una lista condivisa tra i due account.
-        </li>
-        <li>
-          Per ogni locale puoi usare la <strong>valutazione a stelle (1–5)</strong>, aggiungere voci dalla
-          ricerca o dall’autocomplete di Maps, e gestire la lista con conferma prima di eliminare.
-        </li>
-      </ul>
-    </FeatureAnnouncementModal>
   </main>
 </template>
 

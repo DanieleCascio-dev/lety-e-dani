@@ -4,6 +4,8 @@
   import { useAppStorage, signOutUser } from "@/composables/useAppStorage";
   import { resetTodoState } from "@/composables/useTodoLists";
   import { getSupabaseClient } from "@/lib/supabase";
+  import FeatureAnnouncementModal from "@/components/FeatureAnnouncementModal.vue";
+  import { HOME_FEATURE_ANNOUNCEMENT_ID } from "@/config/featureAnnouncements";
   import type { UserId } from "@/types/app";
   import danyAvatarUrl from "@/assets/propic/dany.jpeg";
   import letyAvatarUrl from "@/assets/propic/lety.jpeg";
@@ -273,6 +275,25 @@
     </nav>
 
     <RouterView />
+
+    <FeatureAnnouncementModal
+      v-if="route.name !== 'login'"
+      :announcement-id="HOME_FEATURE_ANNOUNCEMENT_ID"
+    >
+      <template #title>Bentornat*!</template>
+      <p class="mb-2 fw-semibold">Ecco cosa c’è di nuovo:</p>
+      <ul class="mb-0 ps-3">
+        <li class="mb-2">
+          <strong>Cose da fare</strong>: nuova sezione per le attività quotidiane, con
+          <strong>liste multiple</strong>, voci da spuntare, modifica e rimozione — in sync con Supabase
+          come la lista della spesa, così restate allineat* su telefono e desktop.
+        </li>
+        <li>
+          Stesso <strong>segnaposto colore</strong> del profilo accanto alle voci; puoi creare o rinominare
+          le liste e passare da una all’altra dal menu in alto.
+        </li>
+      </ul>
+    </FeatureAnnouncementModal>
   </div>
 </template>
 
