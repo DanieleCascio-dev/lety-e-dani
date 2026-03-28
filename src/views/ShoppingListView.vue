@@ -70,6 +70,21 @@
   const itemEditSubmitting = ref(false);
   const itemEditInputRef = ref<HTMLInputElement | null>(null);
 
+  const GROCERY_ITEM_DISPLAY_MAX = 100;
+
+  function groceryItemDisplayText(text: string): string {
+    if (text.length <= GROCERY_ITEM_DISPLAY_MAX) return text;
+    return `${text.slice(0, GROCERY_ITEM_DISPLAY_MAX).trimEnd()}…`;
+  }
+
+  function groceryItemTitleIfTruncated(text: string): string | undefined {
+    return text.length > GROCERY_ITEM_DISPLAY_MAX ? text : undefined;
+  }
+
+  function groceryItemLabelAriaLabel(text: string): string | undefined {
+    return text.length > GROCERY_ITEM_DISPLAY_MAX ? text : undefined;
+  }
+
   watch(itemEditId, async (id) => {
     if (!id) return;
     await nextTick();
@@ -352,6 +367,31 @@
   const hasOpenItems = computed(() => currentList.value.some((i) => !i.done));
   const hasDoneItems = computed(() => currentList.value.some((i) => i.done));
 
+  const isAllItemsDone = computed(
+    () =>
+      currentList.value.length > 0 &&
+      currentList.value.every((i) => i.done),
+  );
+
+  const bulkMasterCheckboxRef = ref<HTMLInputElement | null>(null);
+
+  watch(
+    [currentList, hasOpenItems, hasDoneItems],
+    () => {
+      nextTick(() => {
+        const el = bulkMasterCheckboxRef.value;
+        if (!el) return;
+        el.indeterminate = hasOpenItems.value && hasDoneItems.value;
+      });
+    },
+    { deep: true, immediate: true },
+  );
+
+  function onBulkMasterChange(e: Event) {
+    const el = e.target as HTMLInputElement;
+    void markAllGroceryItemsDone(el.checked);
+  }
+
   const chatListButtonDisabled = computed(
     () =>
       !isGroceryCloud.value ||
@@ -457,11 +497,24 @@
           >
             <button
               type="button"
-              class="btn btn-sm btn-outline-primary shopping-toolbar-btn"
+              class="btn btn-sm btn-outline-primary d-inline-flex align-items-center justify-content-center shopping-toolbar-btn shopping-toolbar-icon-btn"
               :disabled="groceryListsLoading"
+              aria-label="Nuova lista"
+              title="Nuova lista"
               @click="openCreateModal"
             >
-              Nuova
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                fill="currentColor"
+                viewBox="0 0 16 16"
+                aria-hidden="true"
+              >
+                <path
+                  d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"
+                />
+              </svg>
             </button>
             <button
               type="button"
@@ -547,7 +600,7 @@
         v-if="!groceryLists.length && !groceryListsLoading"
         class="alert alert-light border mb-3 small py-2"
       >
-        Nessuna lista ancora. Tocca <strong>Nuova</strong> per iniziare.
+        Nessuna lista ancora. Tocca <strong>+</strong> per iniziare.
       </div>
 
       <Teleport to="body">
@@ -919,66 +972,26 @@
 
       <div
         v-if="currentList.length"
-        class="mb-1 d-flex justify-content-end shopping-bulk-action"
+        class="mb-1 d-flex justify-content-end align-items-center shopping-bulk-action"
       >
-        <button
-          type="button"
-          class="btn btn-sm btn-link text-secondary text-decoration-none shopping-bulk-btn touch-manipulation"
-          :disabled="!hasOpenItems && !hasDoneItems"
-          :title="
-            hasOpenItems
-              ? 'Segna tutti gli articoli come comprati'
-              : 'Togli la spunta da tutti gli articoli'
-          "
-          :aria-label="
-            hasOpenItems
-              ? 'Segna tutti gli articoli'
-              : 'Deseleziona tutti gli articoli'
-          "
-          @click="
-            hasOpenItems
-              ? markAllGroceryItemsDone(true)
-              : markAllGroceryItemsDone(false)
-          "
-        >
-          <span
-            v-if="hasOpenItems"
-            class="shopping-bulk-btn-inner"
-            aria-hidden="true"
+        <div class="form-check mb-0 shopping-bulk-master d-flex align-items-center gap-1">
+          <input
+            id="shopping-bulk-master"
+            ref="bulkMasterCheckboxRef"
+            type="checkbox"
+            class="form-check-input shopping-check shopping-bulk-master-check flex-shrink-0"
+            :checked="isAllItemsDone"
+            aria-label="Segna o deseleziona tutti gli articoli della lista"
+            title="Segna tutti / deseleziona tutti"
+            @change="onBulkMasterChange"
+          />
+          <label
+            class="form-check-label small text-secondary mb-0 user-select-none"
+            for="shopping-bulk-master"
           >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="16"
-              height="16"
-              fill="currentColor"
-              viewBox="0 0 16 16"
-            >
-              <path
-                d="M10.97 4.97a.75.75 0 0 1 1.07 1.05l-3.99 4.99a.75.75 0 0 1-1.08.02L4.324 9.384a.75.75 0 1 1 1.06-1.06l2.094 2.093 3.473-4.425a.267.267 0 0 1 .02-.022z"
-              />
-              <path
-                d="M14.736 3.97a.733.733 0 0 1 1.047 0c.286.289.29.756.01 1.05l-3.5 4.5a.678.678 0 0 1-.944 0l-1.95-1.95a.75.75 0 1 1 1.06-1.06l1.47 1.47 2.262-2.27a.75.75 0 0 1 1.06 0z"
-              />
-            </svg>
-          </span>
-          <span v-else class="shopping-bulk-btn-inner" aria-hidden="true">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="16"
-              height="16"
-              fill="currentColor"
-              viewBox="0 0 16 16"
-            >
-              <path
-                fill-rule="evenodd"
-                d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"
-              />
-              <path
-                d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"
-              />
-            </svg>
-          </span>
-        </button>
+            Tutti
+          </label>
+        </div>
       </div>
 
       <ul
@@ -988,11 +1001,11 @@
         <li
           v-for="item in currentList"
           :key="item.id"
-          class="list-group-item d-flex align-items-center gap-2 gap-sm-3 py-2 py-sm-3 shopping-list-row touch-manipulation shopping-list-row--compact"
+          class="list-group-item d-flex align-items-center gap-2 gap-sm-3 py-1 shopping-list-row touch-manipulation shopping-list-row--compact"
           :class="{ 'bg-body-tertiary': item.done }"
         >
           <div
-            class="form-check m-0 flex-grow-1 d-flex align-items-start shopping-item-check"
+            class="form-check m-0 flex-grow-1 d-flex align-items-center shopping-item-check"
           >
             <input
               :id="`g-${item.id}`"
@@ -1002,20 +1015,22 @@
               @change="onGroceryDoneChange(item, $event)"
             />
             <div
-              class="min-w-0 flex-grow-1 d-flex flex-column align-items-stretch gap-1"
+              class="min-w-0 flex-grow-1 d-flex flex-column align-items-stretch gap-0"
             >
               <label
                 v-if="itemEditId !== item.id"
                 class="form-check-label user-select-none d-flex align-items-center gap-2 flex-wrap min-w-0 mb-0"
                 :for="`g-${item.id}`"
+                :aria-label="groceryItemLabelAriaLabel(item.text)"
               >
                 <span
-                  class="item-text min-w-0"
+                  class="item-text min-w-0 shopping-item-text-line"
                   :class="{
                     'text-decoration-line-through text-secondary': item.done,
                   }"
+                  :title="groceryItemTitleIfTruncated(item.text)"
                 >
-                  {{ item.text }}
+                  {{ groceryItemDisplayText(item.text) }}
                 </span>
                 <span
                   class="shrink-0 ms-1"
@@ -1057,7 +1072,7 @@
             </div>
           </div>
           <div
-            class="d-flex align-items-center gap-1 shrink-0 align-self-center"
+            class="d-flex align-items-center gap-1 shrink-0 align-self-center shopping-item-actions"
           >
             <button
               v-if="itemEditId !== item.id"
@@ -1226,12 +1241,10 @@
     height: 1rem;
     flex-shrink: 0;
     margin: 0;
-    vertical-align: middle;
   }
 
   .shopping-ai-btn-spinner {
     flex-shrink: 0;
-    vertical-align: middle;
   }
 
   .shopping-list-row--compact {
@@ -1242,31 +1255,9 @@
     min-height: 0;
   }
 
-  .shopping-bulk-btn {
-    padding: 0.15rem 0.35rem;
-    line-height: 0;
-    border: 0;
-  }
-
-  .shopping-bulk-btn:hover:not(:disabled),
-  .shopping-bulk-btn:focus-visible:not(:disabled) {
-    color: var(--bs-primary) !important;
-  }
-
-  .shopping-bulk-btn:disabled {
-    opacity: 0.45;
-    pointer-events: none;
-  }
-
-  .shopping-bulk-btn-inner {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    line-height: 0;
-  }
-
-  .shopping-bulk-btn-inner svg {
-    display: block;
+  .shopping-bulk-master .form-check-label {
+    cursor: pointer;
+    padding-top: 0.05rem;
   }
 
   .shopping-item-edit-input {
@@ -1296,7 +1287,7 @@
   /* Spazio tra checkbox e nome (Bootstrap usa padding-left sul .form-check) */
   .shopping-item-check {
     padding-left: 0;
-    gap: 0.75rem;
+    gap: 0.5rem;
   }
 
   .shopping-item-check .form-check-input {

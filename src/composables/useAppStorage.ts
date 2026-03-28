@@ -63,6 +63,8 @@ const DEFAULT_PROFILES: Record<UserId, UserProfile> = {
     textIcon: 'grocery-text-icon',
     iconColor: null,
     iconShape: 'circle',
+    navbarBg: null,
+    pageBg: null,
   },
   letizia: {
     id: 'letizia',
@@ -70,6 +72,8 @@ const DEFAULT_PROFILES: Record<UserId, UserProfile> = {
     textIcon: 'grocery-text-icon',
     iconColor: null,
     iconShape: 'circle',
+    navbarBg: null,
+    pageBg: null,
   },
 }
 
@@ -109,6 +113,8 @@ function loadProfiles(): Record<UserId, UserProfile> {
         id: 'daniele',
         iconColor: normalizeHexColor(parsed.daniele?.iconColor as string) ?? DEFAULT_PROFILES.daniele.iconColor,
         iconShape: parseIconShape(parsed.daniele?.iconShape),
+        navbarBg: normalizeHexColor(parsed.daniele?.navbarBg as string) ?? DEFAULT_PROFILES.daniele.navbarBg,
+        pageBg: normalizeHexColor(parsed.daniele?.pageBg as string) ?? DEFAULT_PROFILES.daniele.pageBg,
       },
       letizia: {
         ...DEFAULT_PROFILES.letizia,
@@ -116,6 +122,8 @@ function loadProfiles(): Record<UserId, UserProfile> {
         id: 'letizia',
         iconColor: normalizeHexColor(parsed.letizia?.iconColor as string) ?? DEFAULT_PROFILES.letizia.iconColor,
         iconShape: parseIconShape(parsed.letizia?.iconShape),
+        navbarBg: normalizeHexColor(parsed.letizia?.navbarBg as string) ?? DEFAULT_PROFILES.letizia.navbarBg,
+        pageBg: normalizeHexColor(parsed.letizia?.pageBg as string) ?? DEFAULT_PROFILES.letizia.pageBg,
       },
     }
   } catch {
@@ -418,8 +426,10 @@ async function startGroceriesSync() {
 
 type AppUserRowDb = {
   app_role: string
-  icon_color: string | null
-  icon_shape: string | null
+  icon_color?: string | null
+  icon_shape?: string | null
+  navbar_bg?: string | null
+  page_bg?: string | null
 }
 
 export const lastAppUserFetchError = ref<string | null>(null)
@@ -428,12 +438,18 @@ function applyAppUserRowToProfiles(row: AppUserRowDb) {
   const role = row.app_role
   if (role !== 'daniele' && role !== 'letizia') return
   const uid = role as UserId
+  const prev = userProfiles.value[uid]
   userProfiles.value = {
     ...userProfiles.value,
     [uid]: {
-      ...userProfiles.value[uid],
-      iconColor: normalizeHexColor(row.icon_color),
-      iconShape: parseIconShape(row.icon_shape),
+      ...prev,
+      iconColor:
+        row.icon_color !== undefined ? normalizeHexColor(row.icon_color) : prev.iconColor,
+      iconShape:
+        row.icon_shape !== undefined ? parseIconShape(row.icon_shape) : prev.iconShape,
+      navbarBg:
+        row.navbar_bg !== undefined ? normalizeHexColor(row.navbar_bg) : prev.navbarBg,
+      pageBg: row.page_bg !== undefined ? normalizeHexColor(row.page_bg) : prev.pageBg,
       textIcon: 'grocery-text-icon',
     },
   }
@@ -514,6 +530,40 @@ export async function saveAppUserIconPreferences(
     app_role: activeUser.value,
     icon_color: c,
     icon_shape: sh,
+  })
+  return { ok: true }
+}
+
+/**
+ * Colori navbar e sfondo pagina: Supabase `app_user` se autenticato, altrimenti solo `userProfiles` (sessionStorage).
+ */
+export async function saveAppUserThemePreferences(
+  navbarBg: string | null,
+  pageBg: string | null,
+): Promise<{ ok: boolean; error?: string }> {
+  const nb = navbarBg ? normalizeHexColor(navbarBg) : null
+  const pb = pageBg ? normalizeHexColor(pageBg) : null
+  if (navbarBg && String(navbarBg).trim() && !nb) {
+    return { ok: false, error: 'Colore navbar non valido: usa #RRGGBB.' }
+  }
+  if (pageBg && String(pageBg).trim() && !pb) {
+    return { ok: false, error: 'Colore sfondo non valido: usa #RRGGBB.' }
+  }
+
+  const sb = getSupabaseClient()
+  const authUid = authSession.value?.user?.id
+  if (sb && authUid && appUserSessionValid.value) {
+    const { error } = await sb
+      .from('app_user')
+      .update({ navbar_bg: nb, page_bg: pb })
+      .eq('user_id', authUid)
+    if (error) return { ok: false, error: error.message }
+  }
+
+  applyAppUserRowToProfiles({
+    app_role: activeUser.value,
+    navbar_bg: nb,
+    page_bg: pb,
   })
   return { ok: true }
 }

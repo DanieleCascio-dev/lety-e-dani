@@ -17,6 +17,10 @@ export interface UserProfile {
   /** Colore personalizzato (#RRGGBB); null = palette predefinita per ruolo. */
   iconColor: string | null
   iconShape: IconShape
+  /** Sfondo navbar (#RRGGBB); null = tema predefinito (`bg-body`). */
+  navbarBg: string | null
+  /** Sfondo area contenuti (#RRGGBB); null = grigio chiaro app. */
+  pageBg: string | null
 }
 
 /** Contenitore “lista della spesa”. */

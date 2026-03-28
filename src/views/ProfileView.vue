@@ -6,6 +6,7 @@
   import {
     refreshAppUserProfileFromDb,
     saveAppUserIconPreferences,
+    saveAppUserThemePreferences,
     useAppStorage,
   } from "@/composables/useAppStorage";
   import type { IconShape } from "@/types/app";
@@ -29,6 +30,17 @@
   const iconShape = ref<IconShape>("circle");
   const iconMsg = ref<string | null>(null);
   const iconLoading = ref(false);
+
+  /** Allineati a Bootstrap: navbar `bg-body`, shell `gray-200`. */
+  const DEFAULT_NAVBAR_HEX = "#ffffff";
+  const DEFAULT_PAGE_HEX = "#e9ecef";
+
+  const useDefaultNavbarBg = ref(true);
+  const useDefaultPageBg = ref(true);
+  const navbarBgHex = ref(DEFAULT_NAVBAR_HEX);
+  const pageBgHex = ref(DEFAULT_PAGE_HEX);
+  const themeMsg = ref<string | null>(null);
+  const themeLoading = ref(false);
 
   const shapeOptions: { value: IconShape; label: string }[] = [
     { value: "circle", label: "Cerchio" },
@@ -54,6 +66,11 @@
     useDefaultIconColor.value = !hasCustom;
     iconColorHex.value = hexForColorInput(p.iconColor, fallback);
     iconShape.value = p.iconShape ?? "circle";
+
+    useDefaultNavbarBg.value = !p.navbarBg;
+    navbarBgHex.value = hexForColorInput(p.navbarBg, DEFAULT_NAVBAR_HEX);
+    useDefaultPageBg.value = !p.pageBg;
+    pageBgHex.value = hexForColorInput(p.pageBg, DEFAULT_PAGE_HEX);
   }
 
   async function syncProfileFormFromStorage() {
@@ -182,6 +199,23 @@
       iconLoading.value = false;
     }
   }
+
+  async function saveThemePreferences() {
+    themeMsg.value = null;
+    themeLoading.value = true;
+    try {
+      const navbarBg = useDefaultNavbarBg.value ? null : navbarBgHex.value;
+      const pageBg = useDefaultPageBg.value ? null : pageBgHex.value;
+      const res = await saveAppUserThemePreferences(navbarBg, pageBg);
+      if (!res.ok) {
+        themeMsg.value = res.error ?? "Errore nel salvataggio.";
+        return;
+      }
+      themeMsg.value = "Colori salvati.";
+    } finally {
+      themeLoading.value = false;
+    }
+  }
 </script>
 
 <template>
@@ -191,8 +225,8 @@
       <p class="text-secondary small mb-4">
         Account
         <strong>{{ activeUser === "daniele" ? "Daniele" : "Letizia" }}</strong>
-        — email, password e aspetto dell’icona negli elenchi (lista spesa,
-        ecc.).
+        — email, password, colori dell’interfaccia e icona negli elenchi (lista
+        spesa, ecc.).
       </p>
 
       <section class="card shadow-sm border-0 mb-3">
@@ -276,6 +310,85 @@
             @click="savePassword"
           >
             {{ passwordLoading ? "Salvataggio…" : "Aggiorna password" }}
+          </button>
+        </div>
+      </section>
+
+      <section class="card shadow-sm border-0 mb-3">
+        <div class="card-body">
+          <h2 class="h6 mb-2">Colori interfaccia</h2>
+          <p class="small text-secondary mb-3">
+            Navbar in alto e sfondo delle pagine. Valori predefiniti dell’app se
+            lasci selezionato «Predefinito».
+          </p>
+
+          <div class="form-check mb-2">
+            <input
+              id="profile-default-navbar-bg"
+              v-model="useDefaultNavbarBg"
+              class="form-check-input"
+              type="checkbox"
+            />
+            <label
+              class="form-check-label small"
+              for="profile-default-navbar-bg"
+            >
+              Navbar: sfondo predefinito (bianco)
+            </label>
+          </div>
+          <div v-if="!useDefaultNavbarBg" class="mb-3">
+            <label for="profile-navbar-bg" class="form-label small"
+              >Colore navbar</label
+            >
+            <input
+              id="profile-navbar-bg"
+              v-model="navbarBgHex"
+              type="color"
+              class="form-control form-control-color w-25"
+              title="Colore navbar"
+            />
+          </div>
+
+          <div class="form-check mb-2">
+            <input
+              id="profile-default-page-bg"
+              v-model="useDefaultPageBg"
+              class="form-check-input"
+              type="checkbox"
+            />
+            <label class="form-check-label small" for="profile-default-page-bg">
+              Pagine: sfondo predefinito (grigio chiaro)
+            </label>
+          </div>
+          <div v-if="!useDefaultPageBg" class="mb-3">
+            <label for="profile-page-bg" class="form-label small"
+              >Colore sfondo pagine</label
+            >
+            <input
+              id="profile-page-bg"
+              v-model="pageBgHex"
+              type="color"
+              class="form-control form-control-color w-25"
+              title="Colore sfondo pagine"
+            />
+          </div>
+
+          <p
+            v-if="themeMsg"
+            class="small mb-2"
+            :class="
+              themeMsg.includes('salvati') ? 'text-success' : 'text-danger'
+            "
+          >
+            {{ themeMsg }}
+          </p>
+          <button
+            type="button"
+            class="btn btn-primary btn-sm"
+            :disabled="themeLoading"
+            @click="saveThemePreferences"
+          >
+            {{ themeLoading ? "Salvataggio…" : "Salva colori" }}
           </button>
         </div>
       </section>

@@ -21,7 +21,22 @@
 
   const route = useRoute();
   const router = useRouter();
-  const { activeUser, setActiveUser, appUserSessionValid } = useAppStorage();
+  const { activeUser, setActiveUser, appUserSessionValid, profileFor } =
+    useAppStorage();
+
+  const appShellStyle = computed(() => {
+    const bg = profileFor(activeUser.value).pageBg;
+    return bg ? { background: bg } : undefined;
+  });
+
+  const appNavStyle = computed(() => {
+    const bg = profileFor(activeUser.value).navbarBg;
+    return bg ? { backgroundColor: bg } : undefined;
+  });
+
+  const appNavUsesDefaultBg = computed(
+    () => !profileFor(activeUser.value).navbarBg,
+  );
 
   watch(appUserSessionValid, (ok) => {
     if (!ok) resetTodoState();
@@ -88,9 +103,14 @@
 </script>
 
 <template>
-  <div class="app-shell d-flex flex-column min-vh-100">
+  <div
+    class="app-shell d-flex flex-column min-vh-100"
+    :style="appShellStyle"
+  >
     <nav
-      class="navbar navbar-light bg-body border-bottom sticky-top app-top-nav"
+      class="navbar navbar-light border-bottom sticky-top app-top-nav"
+      :class="{ 'bg-body': appNavUsesDefaultBg }"
+      :style="appNavStyle"
     >
       <div
         class="container-fluid px-3 px-sm-4 d-flex flex-column align-items-stretch gap-0"
@@ -313,7 +333,7 @@
 
 <style scoped>
   .app-shell {
-    background: var(--bs-gray-100, #f8f9fa);
+    background: var(--bs-gray-200, #e9ecef);
   }
 
   .profile-avatar-btn {

@@ -45,8 +45,6 @@
 
   const listMenuOpen = ref(false);
   const listMenuRoot = ref<HTMLElement | null>(null);
-  const actionsMenuOpen = ref(false);
-  const actionsMenuRoot = ref<HTMLElement | null>(null);
 
   const createModalOpen = ref(false);
   const newListName = ref("");
@@ -58,14 +56,28 @@
   const itemRemoveModalOpen = ref(false);
   const itemRemoveTargetId = ref<string | null>(null);
   const itemRemoveSubmitting = ref(false);
-  const itemEditModalOpen = ref(false);
   const itemEditId = ref<string | null>(null);
   const itemEditText = ref("");
   const itemEditSubmitting = ref(false);
   const itemEditInputRef = ref<HTMLInputElement | null>(null);
 
-  watch(itemEditModalOpen, async (open) => {
-    if (!open) return;
+  const TODO_ITEM_DISPLAY_MAX = 100;
+
+  function todoItemDisplayText(text: string): string {
+    if (text.length <= TODO_ITEM_DISPLAY_MAX) return text;
+    return `${text.slice(0, TODO_ITEM_DISPLAY_MAX).trimEnd()}…`;
+  }
+
+  function todoItemTitleIfTruncated(text: string): string | undefined {
+    return text.length > TODO_ITEM_DISPLAY_MAX ? text : undefined;
+  }
+
+  function todoItemLabelAriaLabel(text: string): string | undefined {
+    return text.length > TODO_ITEM_DISPLAY_MAX ? text : undefined;
+  }
+
+  watch(itemEditId, async (id) => {
+    if (!id) return;
     await nextTick();
     const el = itemEditInputRef.value;
     if (!el) return;
@@ -85,14 +97,6 @@
     listMenuOpen.value = false;
   }
 
-  function toggleActionsMenu() {
-    actionsMenuOpen.value = !actionsMenuOpen.value;
-  }
-
-  function closeActionsMenu() {
-    actionsMenuOpen.value = false;
-  }
-
   function pickList(id: string) {
     void selectTodoList(id);
     closeListMenu();
@@ -102,7 +106,6 @@
     newListName.value = "";
     createModalOpen.value = true;
     closeListMenu();
-    closeActionsMenu();
   }
 
   function closeCreateModal() {
@@ -112,7 +115,6 @@
   function openRenameModal() {
     renameListName.value = currentTodoListMeta.value?.title ?? "";
     renameModalOpen.value = true;
-    closeActionsMenu();
     closeListMenu();
   }
 
@@ -127,10 +129,9 @@
     if (ok) closeRenameModal();
   }
 
-  function onDeleteFromActionsMenu() {
+  function openDeleteListForSelected() {
     const id = selectedTodoListId.value;
     if (!id) return;
-    closeActionsMenu();
     openDeleteListModal(id);
   }
 
@@ -189,30 +190,64 @@
     }
   }
 
-  function openItemEditModal(item: TodoItem) {
-    itemEditId.value = item.id;
-    itemEditText.value = item.text;
-    itemEditModalOpen.value = true;
-  }
-
-  function closeItemEditModal() {
-    itemEditModalOpen.value = false;
+  function cancelItemEdit() {
     itemEditId.value = null;
     itemEditText.value = "";
   }
 
-  function onItemEditBackdrop() {
-    if (!itemEditSubmitting.value) closeItemEditModal();
+  async function commitOrCancelInlineEdit() {
+    const id = itemEditId.value;
+    if (!id || itemEditSubmitting.value) return;
+    const row = currentTodoList.value.find((i) => i.id === id);
+    if (!row) {
+      cancelItemEdit();
+      return;
+    }
+    const trimmed = itemEditText.value.trim();
+    if (!trimmed) {
+      cancelItemEdit();
+      return;
+    }
+    if (trimmed === row.text) {
+      cancelItemEdit();
+      return;
+    }
+    await confirmItemEdit();
+  }
+
+  function onItemEditBlur() {
+    window.setTimeout(() => {
+      if (!itemEditId.value) return;
+      void commitOrCancelInlineEdit();
+    }, 0);
+  }
+
+  async function startItemEdit(item: TodoItem) {
+    if (itemEditId.value === item.id) {
+      await commitOrCancelInlineEdit();
+      return;
+    }
+    if (itemEditId.value) {
+      await commitOrCancelInlineEdit();
+      if (itemEditId.value) return;
+    }
+    itemEditId.value = item.id;
+    itemEditText.value = item.text;
   }
 
   async function confirmItemEdit() {
     const id = itemEditId.value;
     if (!id) return;
+    const trimmed = itemEditText.value.trim();
+    if (!trimmed) {
+      cancelItemEdit();
+      return;
+    }
     itemEditSubmitting.value = true;
     try {
       const ok = await updateTodoItemText(id, itemEditText.value);
       await nextTick();
-      if (ok && !todosError.value) closeItemEditModal();
+      if (ok && !todosError.value) cancelItemEdit();
     } finally {
       itemEditSubmitting.value = false;
     }
@@ -253,15 +288,43 @@
     currentTodoList.value.some((i) => i.done),
   );
 
+  const isAllItemsDone = computed(
+    () =>
+      currentTodoList.value.length > 0 &&
+      currentTodoList.value.every((i) => i.done),
+  );
+
+  const bulkMasterCheckboxRef = ref<HTMLInputElement | null>(null);
+
+  watch(
+    [currentTodoList, hasOpenItems, hasDoneItems],
+    () => {
+      nextTick(() => {
+        const el = bulkMasterCheckboxRef.value;
+        if (!el) return;
+        el.indeterminate = hasOpenItems.value && hasDoneItems.value;
+      });
+    },
+    { deep: true, immediate: true },
+  );
+
+  function onBulkMasterChange(e: Event) {
+    const el = e.target as HTMLInputElement;
+    void markAllTodoItemsDone(el.checked);
+  }
+
+  const listToolbarListActionsDisabled = computed(
+    () =>
+      !selectedTodoListId.value ||
+      todoListsLoading.value ||
+      !todoLists.value.length,
+  );
+
   function onDocumentPointerDown(ev: PointerEvent) {
     const t = ev.target;
     if (listMenuOpen.value) {
       const root = listMenuRoot.value;
       if (root && t instanceof Node && !root.contains(t)) closeListMenu();
-    }
-    if (actionsMenuOpen.value) {
-      const root = actionsMenuRoot.value;
-      if (root && t instanceof Node && !root.contains(t)) closeActionsMenu();
     }
   }
 
@@ -271,8 +334,8 @@
       if (!itemRemoveSubmitting.value) closeItemRemoveModal();
       return;
     }
-    if (itemEditModalOpen.value) {
-      if (!itemEditSubmitting.value) closeItemEditModal();
+    if (itemEditId.value) {
+      if (!itemEditSubmitting.value) cancelItemEdit();
       return;
     }
     if (deleteModalOpen.value) {
@@ -288,7 +351,6 @@
       return;
     }
     closeListMenu();
-    closeActionsMenu();
   }
 
   async function refreshTodoPageData() {
@@ -315,29 +377,35 @@
 </script>
 
 <template>
-  <main class="todo-main shopping-main pb-5">
-    <div class="container-fluid px-3 px-sm-4 todo-page">
+  <main class="shopping-main shopping-page">
+    <div
+      class="container-fluid px-3 px-sm-4 shopping-inner"
+      style="max-width: 32rem"
+    >
       <h1 class="h5 fw-semibold mb-3">Cose da fare</h1>
       <div
         v-if="todosError"
-        class="alert alert-warning py-2 small mb-3"
+        class="alert alert-warning small py-2 mb-2"
         role="status"
       >
         {{ todosError }}
       </div>
 
-      <div class="mb-4">
-        <span class="form-label small text-secondary d-block mb-1"
+      <div class="mb-3 shopping-list-controls">
+        <span class="form-label small text-secondary d-block mb-1 fw-semibold"
           >Lista attiva</span
         >
         <div
-          class="d-flex flex-column flex-sm-row gap-2 align-items-stretch align-items-sm-start"
+          class="d-flex flex-column flex-sm-row gap-2 align-items-stretch align-items-sm-center shopping-list-controls-row"
         >
-          <div ref="listMenuRoot" class="dropdown flex-grow-1 list-picker">
+          <div
+            ref="listMenuRoot"
+            class="dropdown flex-grow-1 min-w-0 list-picker shopping-list-picker-wrap"
+          >
             <button
               id="todo-list-picker-btn"
               type="button"
-              class="btn btn-light border text-start w-100 d-flex align-items-center justify-content-between gap-2 py-2 min-touch"
+              class="btn btn-sm btn-light border text-start w-100 d-flex align-items-center justify-content-between gap-2 py-2 shopping-list-picker-btn"
               :disabled="!todoLists.length || todoListsLoading"
               aria-haspopup="true"
               :aria-expanded="listMenuOpen"
@@ -371,7 +439,7 @@
               <li v-for="list in todoLists" :key="list.id" class="px-1">
                 <button
                   type="button"
-                  class="btn btn-link text-body text-decoration-none w-100 text-start py-2 px-2 d-flex align-items-center gap-2 min-w-0 list-picker-row rounded border-0 min-touch"
+                  class="btn btn-link text-body text-decoration-none w-100 text-start py-2 px-2 d-flex align-items-center gap-2 min-w-0 list-picker-row rounded border-0"
                   @click="pickList(list.id)"
                 >
                   <span
@@ -388,78 +456,85 @@
               </li>
             </ul>
           </div>
-          <div class="d-flex gap-2 shrink-0 align-items-stretch">
+          <div
+            class="d-flex gap-1 align-items-stretch shopping-list-toolbar"
+          >
             <button
               type="button"
-              class="btn btn-outline-primary min-touch"
+              class="btn btn-sm btn-outline-primary d-inline-flex align-items-center justify-content-center shopping-toolbar-btn shopping-toolbar-icon-btn"
               :disabled="todoListsLoading"
+              aria-label="Nuova lista"
+              title="Nuova lista"
               @click="openCreateModal"
             >
-              Nuova lista
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                fill="currentColor"
+                viewBox="0 0 16 16"
+                aria-hidden="true"
+              >
+                <path
+                  d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"
+                />
+              </svg>
             </button>
-            <div ref="actionsMenuRoot" class="dropdown list-actions-dropdown">
-              <button
-                id="todo-list-actions-menu"
-                type="button"
-                class="btn btn-outline-secondary d-inline-flex align-items-center justify-content-center px-2 h-100 min-touch"
-                :disabled="
-                  !selectedTodoListId || todoListsLoading || !todoLists.length
-                "
-                aria-haspopup="true"
-                :aria-expanded="actionsMenuOpen"
-                aria-label="Altre azioni sulla lista"
-                @click.stop="toggleActionsMenu"
+            <button
+              type="button"
+              class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center justify-content-center shopping-toolbar-btn shopping-toolbar-icon-btn"
+              :disabled="listToolbarListActionsDisabled"
+              title="Modifica nome lista"
+              aria-label="Modifica nome lista"
+              @click="openRenameModal"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                fill="currentColor"
+                viewBox="0 0 16 16"
+                aria-hidden="true"
               >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="20"
-                  height="20"
-                  viewBox="0 0 24 24"
-                  fill="currentColor"
-                  aria-hidden="true"
-                >
-                  <circle cx="12" cy="6" r="2" />
-                  <circle cx="12" cy="12" r="2" />
-                  <circle cx="12" cy="18" r="2" />
-                </svg>
-              </button>
-              <ul
-                class="dropdown-menu dropdown-menu-end shadow-sm py-1"
-                :class="{ show: actionsMenuOpen }"
-                role="menu"
-                aria-labelledby="todo-list-actions-menu"
+                <path
+                  d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5 13.5 4.5 14.5 3.5 12.5 1.5 11.207 2.5zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293l6.5-6.5zm-9.761 5.175-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 0 1 5 12.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.468-.325z"
+                />
+              </svg>
+            </button>
+            <button
+              type="button"
+              class="btn btn-sm btn-outline-danger d-inline-flex align-items-center justify-content-center shopping-toolbar-btn shopping-toolbar-icon-btn"
+              :disabled="listToolbarListActionsDisabled"
+              title="Elimina lista"
+              aria-label="Elimina lista"
+              @click="openDeleteListForSelected"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                fill="currentColor"
+                viewBox="0 0 16 16"
+                aria-hidden="true"
               >
-                <li role="none">
-                  <button
-                    type="button"
-                    class="dropdown-item"
-                    role="menuitem"
-                    @click="openRenameModal"
-                  >
-                    Modifica nome
-                  </button>
-                </li>
-                <li role="none">
-                  <button
-                    type="button"
-                    class="dropdown-item text-danger"
-                    role="menuitem"
-                    @click="onDeleteFromActionsMenu"
-                  >
-                    Elimina lista
-                  </button>
-                </li>
-              </ul>
-            </div>
+                <path
+                  d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"
+                />
+                <path
+                  fill-rule="evenodd"
+                  d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"
+                />
+              </svg>
+            </button>
           </div>
         </div>
       </div>
 
       <div
         v-if="!todoLists.length && !todoListsLoading"
-        class="alert alert-light border mb-4 small"
+        class="alert alert-light border mb-3 small py-2"
       >
-        Nessuna lista ancora. Tocca <strong>Nuova lista</strong> per iniziare.
+        Nessuna lista ancora. Tocca <strong>+</strong> per iniziare.
       </div>
 
       <Teleport to="body">
@@ -507,14 +582,14 @@
               <div class="modal-footer">
                 <button
                   type="button"
-                  class="btn btn-secondary"
+                  class="btn btn-sm btn-secondary"
                   @click="closeCreateModal"
                 >
                   Annulla
                 </button>
                 <button
                   type="button"
-                  class="btn btn-primary"
+                  class="btn btn-sm btn-primary"
                   @click="confirmCreateList"
                 >
                   Crea
@@ -566,14 +641,14 @@
               <div class="modal-footer">
                 <button
                   type="button"
-                  class="btn btn-secondary"
+                  class="btn btn-sm btn-secondary"
                   @click="closeRenameModal"
                 >
                   Annulla
                 </button>
                 <button
                   type="button"
-                  class="btn btn-primary"
+                  class="btn btn-sm btn-primary"
                   @click="confirmRenameList"
                 >
                   Salva
@@ -625,7 +700,7 @@
               <div class="modal-footer">
                 <button
                   type="button"
-                  class="btn btn-secondary"
+                  class="btn btn-sm btn-secondary"
                   :disabled="deleteListSubmitting"
                   @click="closeDeleteModal"
                 >
@@ -633,7 +708,7 @@
                 </button>
                 <button
                   type="button"
-                  class="btn btn-danger"
+                  class="btn btn-sm btn-danger"
                   :disabled="deleteListSubmitting"
                   @click="confirmDeleteList"
                 >
@@ -654,44 +729,47 @@
       <Teleport to="body">
         <div
           v-if="itemRemoveModalOpen"
-          class="modal fade show d-block shopping-modal"
+          class="modal fade show d-block shopping-remove-modal"
           tabindex="-1"
-          style="background-color: rgba(0, 0, 0, 0.4)"
+          style="background-color: rgba(0, 0, 0, 0.28)"
           role="dialog"
           aria-modal="true"
           aria-labelledby="todo-remove-item-title"
           @click.self="onItemRemoveBackdrop"
         >
-          <div class="modal-dialog modal-dialog-centered shopping-modal-dialog">
-            <div class="modal-content" @click.stop>
-              <div class="modal-header">
+          <div
+            class="modal-dialog modal-dialog-centered modal-sm shopping-remove-modal-dialog"
+          >
+            <div class="modal-content border-0 shadow-sm" @click.stop>
+              <div class="modal-header border-0 py-2 px-3 pb-0">
                 <h2
                   id="todo-remove-item-title"
-                  class="modal-title h5 text-danger"
+                  class="modal-title fs-6 fw-semibold mb-0"
                 >
-                  Rimuovi attività
+                  Rimuovere?
                 </h2>
                 <button
                   type="button"
-                  class="btn-close"
+                  class="btn-close shopping-remove-modal-close"
                   aria-label="Chiudi"
                   :disabled="itemRemoveSubmitting"
                   @click="closeItemRemoveModal"
                 />
               </div>
-              <div class="modal-body">
-                <p class="mb-0">
-                  Rimuovere
-                  <strong v-if="itemRemoveTargetLabel">{{
-                    itemRemoveTargetLabel
-                  }}</strong>
-                  <span v-else>questa attività</span>?
+              <div class="modal-body py-2 px-3 pt-1 small text-secondary">
+                <p class="mb-0 text-break">
+                  <template v-if="itemRemoveTargetLabel">
+                    <span class="text-body">{{ itemRemoveTargetLabel }}</span>
+                  </template>
+                  <template v-else>Questa attività</template>
                 </p>
               </div>
-              <div class="modal-footer">
+              <div
+                class="modal-footer border-0 py-2 px-3 pt-0 gap-2 justify-content-end flex-nowrap"
+              >
                 <button
                   type="button"
-                  class="btn btn-secondary"
+                  class="btn btn-sm btn-light border"
                   :disabled="itemRemoveSubmitting"
                   @click="closeItemRemoveModal"
                 >
@@ -699,13 +777,13 @@
                 </button>
                 <button
                   type="button"
-                  class="btn btn-danger"
+                  class="btn btn-sm btn-danger"
                   :disabled="itemRemoveSubmitting"
                   @click="confirmItemRemove"
                 >
                   <span
                     v-if="itemRemoveSubmitting"
-                    class="spinner-border spinner-border-sm me-2"
+                    class="spinner-border spinner-border-sm me-1"
                     role="status"
                     aria-hidden="true"
                   />
@@ -717,86 +795,15 @@
         </div>
       </Teleport>
 
-      <Teleport to="body">
-        <div
-          v-if="itemEditModalOpen"
-          class="modal fade show d-block shopping-modal"
-          tabindex="-1"
-          style="background-color: rgba(0, 0, 0, 0.4)"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="todo-edit-item-title"
-          @click.self="onItemEditBackdrop"
-        >
-          <div class="modal-dialog modal-dialog-centered shopping-modal-dialog">
-            <div class="modal-content" @click.stop>
-              <div class="modal-header">
-                <h2 id="todo-edit-item-title" class="modal-title h5">
-                  Modifica attività
-                </h2>
-                <button
-                  type="button"
-                  class="btn-close"
-                  aria-label="Chiudi"
-                  :disabled="itemEditSubmitting"
-                  @click="closeItemEditModal"
-                />
-              </div>
-              <div class="modal-body">
-                <label for="todo-edit-item-text" class="form-label"
-                  >Testo</label
-                >
-                <input
-                  id="todo-edit-item-text"
-                  ref="itemEditInputRef"
-                  v-model="itemEditText"
-                  type="text"
-                  class="form-control form-control-lg"
-                  maxlength="200"
-                  autocomplete="off"
-                  enterkeyhint="done"
-                  :disabled="itemEditSubmitting"
-                  @keydown.enter.prevent="confirmItemEdit"
-                />
-              </div>
-              <div class="modal-footer">
-                <button
-                  type="button"
-                  class="btn btn-secondary"
-                  :disabled="itemEditSubmitting"
-                  @click="closeItemEditModal"
-                >
-                  Annulla
-                </button>
-                <button
-                  type="button"
-                  class="btn btn-primary"
-                  :disabled="!itemEditText.trim() || itemEditSubmitting"
-                  @click="confirmItemEdit"
-                >
-                  <span
-                    v-if="itemEditSubmitting"
-                    class="spinner-border spinner-border-sm me-2"
-                    role="status"
-                    aria-hidden="true"
-                  />
-                  Salva
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </Teleport>
-
-      <div class="todo-add-form mb-3 mb-md-4">
+      <div class="shopping-add-form mb-3">
         <form class="mb-0" @submit.prevent="onSubmit">
           <label
             for="todo-input"
-            class="form-label fw-medium mb-2 d-block small text-secondary"
+            class="form-label fw-semibold mb-1 d-block small text-secondary"
           >
             Nuova attività
           </label>
-          <div class="input-group input-group-lg">
+          <div class="input-group input-group-sm">
             <input
               id="todo-input"
               v-model="newItem"
@@ -810,7 +817,7 @@
               :disabled="!selectedTodoListId"
             />
             <button
-              class="btn btn-primary px-3 px-sm-4 touch-manipulation min-touch"
+              class="btn btn-primary touch-manipulation"
               type="submit"
               :disabled="!newItem.trim() || !selectedTodoListId"
             >
@@ -822,82 +829,122 @@
 
       <div
         v-if="currentTodoList.length"
-        class="d-flex flex-wrap align-items-center gap-2 gap-sm-3 small mb-3 text-secondary"
+        class="mb-1 d-flex justify-content-end align-items-center shopping-bulk-action"
       >
-        <span class="me-1 align-self-center">Selezione rapida</span>
-        <button
-          type="button"
-          class="btn btn-outline-secondary btn-sm py-2 touch-manipulation min-touch"
-          :disabled="!hasOpenItems"
-          @click="markAllTodoItemsDone(true)"
+        <div
+          class="form-check mb-0 shopping-bulk-master d-flex align-items-center gap-1"
         >
-          Segna tutti
-        </button>
-        <button
-          type="button"
-          class="btn btn-outline-secondary btn-sm py-2 touch-manipulation min-touch"
-          :disabled="!hasDoneItems"
-          @click="markAllTodoItemsDone(false)"
-        >
-          Deseleziona tutti
-        </button>
+          <input
+            id="todo-bulk-master"
+            ref="bulkMasterCheckboxRef"
+            type="checkbox"
+            class="form-check-input shopping-check shopping-bulk-master-check flex-shrink-0"
+            :checked="isAllItemsDone"
+            aria-label="Segna o deseleziona tutte le attività della lista"
+            title="Segna tutte / deseleziona tutte"
+            @change="onBulkMasterChange"
+          />
+          <label
+            class="form-check-label small text-secondary mb-0 user-select-none"
+            for="todo-bulk-master"
+          >
+            Tutti
+          </label>
+        </div>
       </div>
 
       <ul
         v-if="currentTodoList.length"
-        class="list-group list-group-flush shadow-sm rounded overflow-hidden"
+        class="list-group list-group-flush shadow-sm rounded overflow-hidden shopping-items-list"
       >
         <li
           v-for="item in currentTodoList"
           :key="item.id"
-          class="list-group-item d-flex align-items-center gap-2 gap-sm-3 py-3 min-touch todo-list-row touch-manipulation"
+          class="list-group-item d-flex align-items-center gap-2 gap-sm-3 py-1 shopping-list-row touch-manipulation shopping-list-row--compact"
           :class="{ 'bg-body-tertiary': item.done }"
         >
           <div
-            class="form-check m-0 flex-grow-1 d-flex align-items-start todo-item-check"
+            class="form-check m-0 flex-grow-1 d-flex align-items-center shopping-item-check"
           >
             <input
               :id="`todo-${item.id}`"
-              class="form-check-input todo-check flex-shrink-0"
+              class="form-check-input shopping-check flex-shrink-0"
               type="checkbox"
               :checked="item.done"
               @change="onTodoDoneChange(item, $event)"
             />
-            <label
-              class="form-check-label user-select-none d-flex align-items-center gap-2 flex-wrap min-w-0 flex-grow-1"
-              :for="`todo-${item.id}`"
+            <div
+              class="min-w-0 flex-grow-1 d-flex flex-column align-items-stretch gap-0"
             >
-              <span
-                class="item-text min-w-0"
-                :class="{
-                  'text-decoration-line-through text-secondary': item.done,
-                }"
+              <label
+                v-if="itemEditId !== item.id"
+                class="form-check-label user-select-none d-flex align-items-center gap-2 flex-wrap min-w-0 mb-0"
+                :for="`todo-${item.id}`"
+                :aria-label="todoItemLabelAriaLabel(item.text)"
               >
-                {{ item.text }}
-              </span>
-              <span
-                class="shrink-0 ms-1"
-                :class="textIconClassFor(item.addedBy)"
-                :style="textIconStyleFor(item.addedBy)"
-                :title="`Aggiunto da ${userLabel(item.addedBy)}`"
-                aria-hidden="true"
-              />
-            </label>
+                <span
+                  class="item-text min-w-0 shopping-item-text-line"
+                  :class="{
+                    'text-decoration-line-through text-secondary': item.done,
+                  }"
+                  :title="todoItemTitleIfTruncated(item.text)"
+                >
+                  {{ todoItemDisplayText(item.text) }}
+                </span>
+                <span
+                  class="shrink-0 ms-1"
+                  :class="textIconClassFor(item.addedBy)"
+                  :style="textIconStyleFor(item.addedBy)"
+                  :title="`Aggiunto da ${userLabel(item.addedBy)}`"
+                  aria-hidden="true"
+                />
+              </label>
+              <div
+                v-else
+                class="d-flex align-items-center gap-2 min-w-0 w-100"
+              >
+                <input
+                  ref="itemEditInputRef"
+                  v-model="itemEditText"
+                  type="text"
+                  class="form-control form-control-sm shopping-item-edit-input"
+                  placeholder="Testo attività…"
+                  maxlength="200"
+                  autocomplete="off"
+                  enterkeyhint="done"
+                  inputmode="text"
+                  autocapitalize="sentences"
+                  :disabled="itemEditSubmitting"
+                  :aria-label="`Modifica ${item.text}`"
+                  @keydown.enter.prevent="confirmItemEdit"
+                  @keydown.escape.prevent="cancelItemEdit"
+                  @blur="onItemEditBlur"
+                />
+                <span
+                  class="shrink-0"
+                  :class="textIconClassFor(item.addedBy)"
+                  :style="textIconStyleFor(item.addedBy)"
+                  :title="`Aggiunto da ${userLabel(item.addedBy)}`"
+                  aria-hidden="true"
+                />
+              </div>
+            </div>
           </div>
           <div
-            class="d-flex align-items-center gap-1 shrink-0 align-self-center"
+            class="d-flex align-items-center gap-1 shrink-0 align-self-center shopping-item-actions"
           >
             <button
+              v-if="itemEditId !== item.id"
               type="button"
               class="btn btn-outline-secondary btn-sm d-inline-flex align-items-center justify-content-center btn-icon-touch touch-manipulation"
-              title="Modifica"
-              aria-label="Modifica attività"
-              @click.stop="openItemEditModal(item)"
+              title="Modifica nome"
+              aria-label="Modifica nome attività"
+              @click.stop="startItemEdit(item)"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
-                width="18"
-                height="18"
+                width="16"
+                height="16"
                 fill="currentColor"
                 viewBox="0 0 16 16"
                 aria-hidden="true"
@@ -916,8 +963,8 @@
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
-                width="18"
-                height="18"
+                width="16"
+                height="16"
                 fill="currentColor"
                 viewBox="0 0 16 16"
                 aria-hidden="true"
@@ -953,7 +1000,7 @@
       >
         <button
           type="button"
-          class="btn btn-outline-secondary btn-sm py-2 px-3 touch-manipulation min-touch"
+          class="btn btn-outline-secondary btn-sm touch-manipulation"
           @click="clearDoneTodoItems"
         >
           Rimuovi completate
@@ -964,16 +1011,97 @@
 </template>
 
 <style scoped>
-  .todo-main {
-    padding-top: 0.5rem;
+  .shopping-page {
+    min-height: 100dvh;
+    padding-top: max(0.35rem, var(--app-safe-top));
+    padding-bottom: max(0.75rem, var(--app-safe-bottom));
   }
 
-  .todo-page {
-    max-width: 42rem;
+  .shopping-inner {
+    padding-bottom: 0.25rem;
   }
 
-  .min-touch {
-    min-height: 3.25rem;
+  .shopping-main {
+    padding-top: 0.25rem;
+  }
+
+  .shopping-list-controls {
+    padding-bottom: 0.125rem;
+  }
+
+  .shopping-list-controls-row {
+    min-width: 0;
+  }
+
+  .shopping-list-picker-wrap {
+    flex: 1 1 0%;
+    min-width: 0;
+  }
+
+  .shopping-list-picker-btn {
+    min-height: 2.5rem;
+  }
+
+  .shopping-list-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    align-items: stretch;
+    width: auto;
+    max-width: 100%;
+    flex: 0 0 auto;
+  }
+
+  .shopping-list-toolbar > .shopping-toolbar-btn:first-of-type {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
+  .shopping-list-toolbar > .shopping-toolbar-icon-btn {
+    flex: 0 0 var(--shopping-toolbar-icon-size, 2.375rem);
+    width: var(--shopping-toolbar-icon-size, 2.375rem);
+    min-width: var(--shopping-toolbar-icon-size, 2.375rem);
+    max-width: var(--shopping-toolbar-icon-size, 2.375rem);
+    box-sizing: border-box;
+  }
+
+  .shopping-toolbar-btn {
+    min-height: 2.3125rem;
+    padding-left: 0.35rem;
+    padding-right: 0.35rem;
+  }
+
+  .shopping-toolbar-icon-btn {
+    padding-left: 0.25rem;
+    padding-right: 0.25rem;
+  }
+
+  .shopping-toolbar-icon-btn svg {
+    display: block;
+  }
+
+  .shopping-list-row--compact {
+    min-height: 2.25rem;
+  }
+
+  .shopping-item-text-line {
+    line-height: 1.25;
+    font-size: 0.98rem;
+  }
+
+  .shopping-bulk-action {
+    min-height: 0;
+  }
+
+  .shopping-bulk-master .form-check-label {
+    cursor: pointer;
+    padding-top: 0.05rem;
+  }
+
+  .shopping-item-edit-input {
+    flex: 1 1 auto;
+    min-width: 0;
+    width: 100%;
   }
 
   .touch-manipulation {
@@ -981,34 +1109,89 @@
   }
 
   .btn-icon-touch {
-    min-width: 2.75rem;
-    min-height: 2.75rem;
-    padding-left: 0.5rem;
-    padding-right: 0.5rem;
+    min-width: 2.25rem;
+    min-height: 2.25rem;
+    padding-left: 0.35rem;
+    padding-right: 0.35rem;
   }
 
-  .todo-check {
+  .shopping-item-actions .btn-icon-touch {
+    min-height: 2rem;
+    min-width: 2rem;
+    padding-left: 0.25rem;
+    padding-right: 0.25rem;
+  }
+
+  .shopping-check {
     width: 1.35rem;
     height: 1.35rem;
-    margin-top: 0.2rem;
     flex-shrink: 0;
   }
 
-  .todo-item-check {
-    padding-left: 0;
-    gap: 0.75rem;
+  .shopping-list-row .shopping-check {
+    margin-top: 0;
   }
 
-  .todo-item-check .form-check-input {
+  .shopping-item-check {
+    padding-left: 0;
+    gap: 0.5rem;
+  }
+
+  .shopping-item-check .form-check-input {
     float: none;
     margin-left: 0;
   }
 
-  .todo-list-row {
+  .shopping-list-row {
     transition: background-color 0.12s ease;
   }
 
-  /* Stessi aggiustamenti modale lista spesa (safe area, sheet su mobile) */
+  .shopping-list-row:active {
+    filter: brightness(0.97);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .shopping-list-row {
+      transition: none;
+    }
+  }
+
+  .shrink-0 {
+    flex-shrink: 0;
+  }
+
+  .min-w-0 {
+    min-width: 0;
+  }
+
+  .list-picker .dropdown-menu {
+    max-height: min(70dvh, 28rem);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .list-picker-row:hover {
+    background-color: var(--bs-light, #f8f9fa);
+  }
+
+  :global(.shopping-remove-modal) {
+    padding-left: max(1rem, var(--app-safe-left));
+    padding-right: max(1rem, var(--app-safe-right));
+    padding-bottom: max(1rem, var(--app-safe-bottom));
+    padding-top: max(0.75rem, var(--app-safe-top));
+  }
+
+  :global(.shopping-remove-modal .shopping-remove-modal-dialog) {
+    margin: 0.5rem auto;
+    max-width: min(18rem, calc(100% - 1.5rem));
+  }
+
+  :global(.shopping-remove-modal .shopping-remove-modal-close) {
+    padding: 0.35rem;
+    margin: -0.15rem -0.15rem -0.15rem auto;
+    opacity: 0.65;
+  }
+
   :global(.shopping-modal) {
     padding-left: var(--app-safe-left);
     padding-right: var(--app-safe-right);
@@ -1045,6 +1228,11 @@
       flex-direction: column;
     }
 
+    :global(.shopping-modal .modal-dialog-scrollable .modal-body) {
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
     :global(.shopping-modal .modal-footer) {
       flex-direction: column-reverse;
       align-items: stretch;
@@ -1055,7 +1243,7 @@
     :global(.shopping-modal .modal-footer .btn) {
       width: 100%;
       margin: 0;
-      min-height: 2.75rem;
+      min-height: 2.5rem;
     }
   }
 </style>
