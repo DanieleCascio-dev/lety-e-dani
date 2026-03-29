@@ -13,12 +13,21 @@ const props = withDefaults(
     addPending?: boolean
     /** Nasconde "Aggiungi" (es. anteprima form) */
     hideAddButton?: boolean
+    /**
+     * Se true, non mostra nome / badge categoria / stelle in cima (usato nell’accordion risultati:
+     * l’intestazione è nel pulsante accordion).
+     */
+    suppressHeader?: boolean
+  /** Ha coordinate sulla mappa interna: mostra «Vedi sulla mappa» (saved o risultati ricerca) */
+  hasMapCoords?: boolean
   }>(),
   {
     ourRating: 3,
     addedMeta: null,
     addPending: false,
     hideAddButton: false,
+    suppressHeader: false,
+    hasMapCoords: false,
   },
 )
 
@@ -27,31 +36,39 @@ const emit = defineEmits<{
   /** Apre il modale di conferma eliminazione (solo saved) */
   'request-remove': []
   'update-our-rating': [value: number]
+  /** Centra la mappa interna sul locale (con coordinate) */
+  'show-on-map': []
 }>()
 </script>
 
 <template>
   <div
     class="border rounded p-3 mb-2 bg-light restaurant-place-card"
-    :class="{ 'border-primary-subtle': variant === 'saved' }"
+    :class="{
+      'border-primary-subtle': variant === 'saved' && !suppressHeader,
+      'border-0 mb-0': suppressHeader,
+    }"
   >
-    <div v-if="item.categoryLabel" class="mb-2">
-      <span
-        class="badge rounded-pill bg-success-subtle text-success-emphasis border border-success-subtle small fw-normal"
-      >
-        {{ item.categoryLabel }}
-      </span>
-    </div>
-    <div class="d-flex justify-content-between align-items-start gap-2 flex-wrap">
-      <div class="fw-semibold">{{ item.name }}</div>
-      <div v-if="item.rating != null" class="text-nowrap small text-end">
-        <span class="text-warning" aria-hidden="true">★</span>
-        {{ item.rating.toFixed(1) }}
-        <span v-if="item.userRatingCount != null" class="text-secondary">
-          · {{ item.userRatingCount.toLocaleString('it-IT') }} recensioni
+    <template v-if="!suppressHeader">
+      <div v-if="item.categoryLabel" class="mb-2">
+        <span
+          class="badge rounded-pill bg-success-subtle text-success-emphasis border border-success-subtle small fw-normal text-truncate d-inline-block mw-100"
+          :title="item.categoryLabel"
+        >
+          {{ item.categoryLabel }}
         </span>
       </div>
-    </div>
+      <div class="d-flex justify-content-between align-items-start gap-2 flex-wrap">
+        <div class="fw-semibold">{{ item.name }}</div>
+        <div v-if="item.rating != null" class="text-nowrap small text-end">
+          <span class="text-warning" aria-hidden="true">★</span>
+          {{ item.rating.toFixed(1) }}
+          <span v-if="item.userRatingCount != null" class="text-secondary">
+            · {{ item.userRatingCount.toLocaleString('it-IT') }} recensioni
+          </span>
+        </div>
+      </div>
+    </template>
     <div v-if="item.address" class="small text-secondary">{{ item.address }}</div>
     <div class="small mt-1 text-secondary">
       <span v-if="item.distanceKm != null">~{{ item.distanceKm }} km da te</span>
@@ -78,6 +95,14 @@ const emit = defineEmits<{
       >
         Apri su Google Maps
       </a>
+      <button
+        v-if="hasMapCoords && (variant === 'saved' || variant === 'search')"
+        type="button"
+        class="btn btn-sm btn-outline-secondary"
+        @click="emit('show-on-map')"
+      >
+        Vedi sulla mappa
+      </button>
       <button
         v-if="variant === 'search' && !hideAddButton"
         type="button"

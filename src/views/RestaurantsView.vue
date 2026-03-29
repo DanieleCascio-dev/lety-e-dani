@@ -387,6 +387,79 @@ function coordsForSearchItem(r: VeganRestaurantSearchItem) {
   return null
 }
 
+function searchResultPlaceKey(
+  item: VeganRestaurantSearchItem,
+  idx: number,
+): string {
+  const base = item.placeId ?? item.mapsUrl ?? `idx-${idx}`
+  return `sr-${String(base).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 120)}`
+}
+
+const expandedSearchKeys = ref<Set<string>>(new Set())
+
+function isSearchExpanded(key: string) {
+  return expandedSearchKeys.value.has(key)
+}
+
+function toggleSearchAccordion(key: string) {
+  const s = new Set(expandedSearchKeys.value)
+  if (s.has(key)) s.delete(key)
+  else s.add(key)
+  expandedSearchKeys.value = s
+}
+
+const expandedSavedIds = ref<Set<string>>(new Set())
+
+function isSavedExpanded(id: string) {
+  return expandedSavedIds.value.has(id)
+}
+
+function toggleSavedAccordion(id: string) {
+  const s = new Set(expandedSavedIds.value)
+  if (s.has(id)) s.delete(id)
+  else s.add(id)
+  expandedSavedIds.value = s
+}
+
+const focusedSearchResultKey = ref<string | null>(null)
+const highlightedSearchResultKey = ref<string | null>(null)
+
+function searchItemHasMapCoords(item: VeganRestaurantSearchItem): boolean {
+  return coordsForSearchItem(item) !== null
+}
+
+function onShowSearchResultOnMap(item: VeganRestaurantSearchItem, idx: number) {
+  const key = searchResultPlaceKey(item, idx)
+  const s = new Set(expandedSearchKeys.value)
+  s.add(key)
+  expandedSearchKeys.value = s
+  focusedSearchResultKey.value = key
+  void nextTick(() => {
+    document.getElementById('restaurant-search-map')?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'nearest',
+    })
+  })
+}
+
+function onSearchMapPlaceClick(placeKey: string) {
+  const s = new Set(expandedSearchKeys.value)
+  s.add(placeKey)
+  expandedSearchKeys.value = s
+  highlightedSearchResultKey.value = placeKey
+  void nextTick(() => {
+    document.getElementById(`search-result-${placeKey}`)?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'center',
+    })
+  })
+  window.setTimeout(() => {
+    if (highlightedSearchResultKey.value === placeKey) {
+      highlightedSearchResultKey.value = null
+    }
+  }, 2800)
+}
+
 const searchMapMarkers = computed((): RestaurantMapMarker[] => {
   const out: RestaurantMapMarker[] = []
   if (userPos.value) {
@@ -397,7 +470,9 @@ const searchMapMarkers = computed((): RestaurantMapMarker[] => {
       label: 'La tua posizione',
     })
   }
-  for (const r of searchData.value?.restaurants ?? []) {
+  const list = searchData.value?.restaurants ?? []
+  for (let i = 0; i < list.length; i++) {
+    const r = list[i]!
     const c = coordsForSearchItem(r)
     if (c) {
       out.push({
@@ -405,6 +480,7 @@ const searchMapMarkers = computed((): RestaurantMapMarker[] => {
         lng: c.lng,
         kind: 'place',
         label: r.name,
+        placeKey: searchResultPlaceKey(r, i),
       })
     }
   }
@@ -419,6 +495,83 @@ const restaurantsWithoutMapCoords = computed(() => {
 const searchListWithoutCoordsText = computed(() =>
   restaurantsWithoutMapCoords.value.map((x) => x.name).join(', '),
 )
+
+const focusedSavedKey = ref<string | null>(null)
+const highlightedSavedId = ref<string | null>(null)
+
+const savedMapMarkers = computed((): RestaurantMapMarker[] => {
+  const out: RestaurantMapMarker[] = []
+  for (const r of savedList.value) {
+    if (
+      r.latitude != null &&
+      r.longitude != null &&
+      r.latitude >= -90 &&
+      r.latitude <= 90 &&
+      r.longitude >= -180 &&
+      r.longitude <= 180
+    ) {
+      out.push({
+        lat: r.latitude,
+        lng: r.longitude,
+        kind: 'place',
+        label: r.name.trim() || 'Ristorante',
+        placeKey: `saved-${r.id}`,
+      })
+    }
+  }
+  return out
+})
+
+function savedHasMapCoords(r: SavedRestaurant): boolean {
+  return (
+    r.latitude != null &&
+    r.longitude != null &&
+    r.latitude >= -90 &&
+    r.latitude <= 90 &&
+    r.longitude >= -180 &&
+    r.longitude <= 180
+  )
+}
+
+function ensureOurRestaurantsAccordionOpen() {
+  const collapseEl = document.getElementById('collapse-our-restaurants')
+  const btn = document.querySelector(
+    '[data-bs-target="#collapse-our-restaurants"]',
+  )
+  if (collapseEl && !collapseEl.classList.contains('show')) {
+    collapseEl.classList.add('show')
+    btn?.classList.remove('collapsed')
+    btn?.setAttribute('aria-expanded', 'true')
+  }
+}
+
+function onShowSavedOnMap(id: string) {
+  ensureOurRestaurantsAccordionOpen()
+  focusedSavedKey.value = `saved-${id}`
+  void nextTick(() => {
+    document
+      .getElementById('saved-restaurants-map')
+      ?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+  })
+}
+
+function onSavedMapPlaceClick(placeKey: string) {
+  if (!placeKey.startsWith('saved-')) return
+  const id = placeKey.slice('saved-'.length)
+  highlightedSavedId.value = id
+  ensureOurRestaurantsAccordionOpen()
+  const open = new Set(expandedSavedIds.value)
+  open.add(id)
+  expandedSavedIds.value = open
+  void nextTick(() => {
+    document
+      .getElementById(`saved-list-item-${id}`)
+      ?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+  })
+  window.setTimeout(() => {
+    if (highlightedSavedId.value === id) highlightedSavedId.value = null
+  }, 2800)
+}
 
 function requestPosition(): Promise<void> {
   geoMessage.value = null
@@ -477,6 +630,15 @@ watch(
   { immediate: true },
 )
 
+watch(
+  () => searchData.value?.restaurants,
+  () => {
+    expandedSearchKeys.value = new Set()
+    focusedSearchResultKey.value = null
+    highlightedSearchResultKey.value = null
+  },
+)
+
 function onPageShowRestaurants(ev: PageTransitionEvent) {
   if (ev.persisted && route.name === 'restaurants') void loadSaved()
 }
@@ -497,18 +659,78 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <main class="restaurants-main pb-5">
-    <div class="container-fluid px-3 px-sm-4 restaurants-page">
-      <h1 class="h5 fw-semibold mb-3">Ristoranti</h1>
+  <main class="shopping-main shopping-page">
+    <div
+      class="container-fluid px-3 px-sm-4 restaurants-inner restaurants-page"
+      style="max-width: 32rem"
+    >
+      <h1 class="h5 fw-semibold mb-3 text-body">Ristoranti</h1>
 
-      <section class="card border-0 shadow-sm mb-4">
-        <div class="card-body">
-          <h2 class="h6 fw-semibold mb-3">I nostri ristoranti</h2>
-          <p class="small text-secondary mb-3">
-            Cerca il nome su Google mentre digiti, scegli il locale dall’elenco e dai la valutazione
-            da 1 a 5 stelle. La lista è condivisa tra i due account.
-          </p>
-
+      <section class="card border-0 shadow-sm mb-3">
+        <div class="accordion accordion-flush" id="accordion-our-restaurants">
+          <div class="accordion-item border-0">
+            <h2 class="accordion-header d-flex flex-nowrap align-items-stretch mb-0">
+              <button
+                class="accordion-button collapsed rounded-0 shadow-none py-2 restaurants-accordion-btn flex-grow-1 min-w-0"
+                type="button"
+                data-bs-toggle="collapse"
+                data-bs-target="#collapse-our-restaurants"
+                aria-expanded="false"
+                aria-controls="collapse-our-restaurants"
+              >
+                <span class="h6 fw-semibold mb-0 text-truncate d-block min-w-0"
+                  >I nostri ristoranti</span
+                >
+              </button>
+              <div
+                class="restaurants-section-info-wrap d-flex align-items-center border-start border-light-subtle bg-body-secondary bg-opacity-10"
+              >
+                <div class="dropdown">
+                  <button
+                    type="button"
+                    class="btn btn-sm btn-link text-secondary p-2 lh-1 restaurants-info-btn"
+                    data-bs-toggle="dropdown"
+                    data-bs-auto-close="outside"
+                    aria-label="Informazioni su I nostri ristoranti"
+                    @click.stop
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="18"
+                      height="18"
+                      fill="currentColor"
+                      viewBox="0 0 16 16"
+                      aria-hidden="true"
+                    >
+                      <path
+                        d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"
+                      />
+                      <path
+                        d="m8.93 6.588-2.29.287-.082.38.45.083c.294.07.352.176.288.469l-.738 3.468c-.194.897.105 1.319.808 1.319.545 0 1.178-.252 1.465-.598l.088-.416c-.2.176-.492.246-.686.246-.275 0-.375-.193-.304-.533L8.93 6.588zM9 4.5a1 1 0 1 1-2 0 1 1 0 0 1 2 0z"
+                      />
+                    </svg>
+                  </button>
+                  <div
+                    class="dropdown-menu dropdown-menu-end shadow-sm p-3 restaurants-info-menu"
+                  >
+                    <p class="small text-secondary mb-3">
+                      Cerca il nome su Google mentre digiti, scegli il locale dall’elenco e dai la
+                      valutazione da 1 a 5 stelle. La lista è condivisa tra i due account.
+                    </p>
+                    <p class="small text-secondary mb-0">
+                      Concedi la posizione GPS per ricevere suggerimenti più vicini mentre digiti il nome
+                      del ristorante (non influisce sulla ricerca «Cerca ristoranti vegani» più sotto).
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </h2>
+            <div
+              id="collapse-our-restaurants"
+              class="accordion-collapse collapse"
+              data-bs-parent="#accordion-our-restaurants"
+            >
+              <div class="accordion-body pt-0">
           <div v-if="listError" class="alert alert-warning py-2 small mb-3" role="status">
             {{ listError }}
           </div>
@@ -534,19 +756,34 @@ onUnmounted(() => {
               />
               <button
                 type="button"
-                class="btn btn-outline-secondary"
-                title="Usa la posizione GPS per suggerimenti più vicini"
+                class="btn btn-sm d-inline-flex align-items-center justify-content-center gap-1 px-2 restaurant-autocomplete-gps-btn"
+                :class="userPos ? 'btn-primary' : 'btn-outline-secondary'"
+                :aria-pressed="userPos ? 'true' : 'false'"
+                aria-label="Usa la posizione GPS per i suggerimenti mentre digiti il nome del locale"
+                title="Chiede al browser la tua posizione: i suggerimenti mentre digiti saranno più pertinenti (vicini a te)."
                 @click="requestPosition"
               >
-                GPS
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="16"
+                  height="16"
+                  fill="currentColor"
+                  viewBox="0 0 16 16"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M8 16s6-5.686 6-10A6 6 0 0 0 2 6c0 4.314 6 10 6 10zm0-7a3 3 0 1 1 0-6 3 3 0 0 1 0 6z"
+                  />
+                </svg>
+                <span class="d-none d-sm-inline">{{ userPos ? 'Posizione attiva' : 'GPS' }}</span>
               </button>
             </div>
-            <div
-              v-if="userPos"
-              class="small text-secondary mt-1"
-            >
-              Suggerimenti calibrati su posizione ~{{ userPos.lat.toFixed(3) }}, {{ userPos.lng.toFixed(3) }}
-            </div>
+            <p class="form-text small text-secondary mb-0 mt-1">
+              <template v-if="userPos">
+                Posizione usata per il completamento: i suggerimenti mentre digiti il nome sono ordinati in base
+                alla vicinanza (~{{ userPos.lat.toFixed(3) }}, {{ userPos.lng.toFixed(3) }}).
+              </template>
+            </p>
             <ul
               v-show="suggestionsOpen && suggestions.length > 0"
               id="place-suggestions-list"
@@ -595,31 +832,130 @@ onUnmounted(() => {
 
           <div v-if="listLoading" class="text-secondary small">Caricamento…</div>
           <ul v-else class="list-unstyled mb-0 restaurant-saved-list">
-            <li v-for="r in savedList" :key="r.id" class="mb-3">
-              <RestaurantPlaceCard
-                :item="savedToItem(r)"
-                variant="saved"
-                :our-rating="r.rating"
-                :added-meta="`Aggiunto da ${profileFor(r.createdBy).displayName} · ${new Date(r.createdAt).toLocaleDateString('it-IT')}`"
-                @request-remove="openRemoveRestaurantModal(r.id)"
-                @update-our-rating="onOurRatingUpdate(r.id, $event)"
-              />
+            <li
+              v-for="r in savedList"
+              :id="'saved-list-item-' + r.id"
+              :key="r.id"
+              class="mb-2 saved-list-item"
+              :class="{ 'saved-list-item--highlight': highlightedSavedId === r.id }"
+            >
+              <div class="accordion accordion-flush border rounded overflow-hidden bg-body">
+                <div class="accordion-item border-0">
+                  <h2 class="accordion-header">
+                    <button
+                      class="accordion-button py-2 px-3 restaurants-accordion-btn restaurants-search-accordion-btn"
+                      :class="{ collapsed: !isSavedExpanded(r.id) }"
+                      type="button"
+                      :aria-expanded="isSavedExpanded(r.id)"
+                      @click="toggleSavedAccordion(r.id)"
+                    >
+                      <span
+                        class="d-flex flex-nowrap align-items-center gap-2 w-100 text-start min-w-0"
+                      >
+                        <span class="fw-semibold text-truncate min-w-0">{{ r.name }}</span>
+                        <span
+                          class="text-nowrap small text-secondary flex-shrink-0"
+                          aria-label="La nostra valutazione"
+                        >
+                          <span class="text-warning" aria-hidden="true">★</span>
+                          {{ r.rating }}/5
+                        </span>
+                        <span
+                          v-if="r.categoryLabel"
+                          class="badge rounded-pill bg-success-subtle text-success-emphasis border border-success-subtle small fw-normal flex-shrink-0 text-truncate restaurants-search-badge"
+                          :title="r.categoryLabel"
+                        >
+                          {{ r.categoryLabel }}
+                        </span>
+                      </span>
+                    </button>
+                  </h2>
+                  <div
+                    class="collapse bg-light"
+                    :class="{ show: isSavedExpanded(r.id) }"
+                  >
+                    <div class="accordion-body p-3 pt-2">
+                      <RestaurantPlaceCard
+                        :item="savedToItem(r)"
+                        variant="saved"
+                        suppress-header
+                        :our-rating="r.rating"
+                        :has-map-coords="savedHasMapCoords(r)"
+                        :added-meta="`Aggiunto da ${profileFor(r.createdBy).displayName} · ${new Date(r.createdAt).toLocaleDateString('it-IT')}`"
+                        @request-remove="openRemoveRestaurantModal(r.id)"
+                        @update-our-rating="onOurRatingUpdate(r.id, $event)"
+                        @show-on-map="onShowSavedOnMap(r.id)"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
             </li>
           </ul>
+          <div
+            v-if="!listLoading && savedMapMarkers.length"
+            id="saved-restaurants-map"
+            class="restaurant-saved-map-wrap mb-3"
+          >
+            <p class="small text-secondary mb-2">
+              Mappa dei salvati: clicca un pin per evidenziare il locale nell’elenco sopra.
+            </p>
+            <RestaurantMiniMap
+              :markers="savedMapMarkers"
+              :focus-place-key="focusedSavedKey"
+              height="min(38vh, 20rem)"
+              @place-click="onSavedMapPlaceClick"
+            />
+          </div>
           <p v-if="!listLoading && savedList.length === 0 && !listError" class="text-secondary small mb-0">
             Nessun ristorante salvato ancora.
           </p>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
-      <section class="card border-0 shadow-sm mb-4">
+      <section class="card border-0 shadow-sm mb-0">
         <div class="card-body">
-          <h2 class="h6 fw-semibold mb-3">Cerca ristorante (Google Maps)</h2>
-          <p class="small text-secondary mb-3">
-            Usiamo la tua posizione e un raggio in chilometri; i risultati arrivano da
-            <strong>Google Places</strong> (stessi dati che vedi su Maps: nome, indirizzo, link e
-            valutazioni). Orari e menu possono cambiare: controlla sempre la scheda del locale.
-          </p>
+          <div class="d-flex align-items-start gap-2 mb-3">
+            <h2 class="h6 fw-semibold mb-0 flex-grow-1 min-w-0">
+              Cerca ristorante (Google Maps)
+            </h2>
+            <div class="dropdown flex-shrink-0">
+              <button
+                type="button"
+                class="btn btn-sm btn-link text-secondary p-0 lh-1 restaurants-info-btn"
+                data-bs-toggle="dropdown"
+                data-bs-auto-close="outside"
+                aria-label="Informazioni sulla ricerca Google Places"
+                @click.stop
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="18"
+                  height="18"
+                  fill="currentColor"
+                  viewBox="0 0 16 16"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"
+                  />
+                  <path
+                    d="m8.93 6.588-2.29.287-.082.38.45.083c.294.07.352.176.288.469l-.738 3.468c-.194.897.105 1.319.808 1.319.545 0 1.178-.252 1.465-.598l.088-.416c-.2.176-.492.246-.686.246-.275 0-.375-.193-.304-.533L8.93 6.588zM9 4.5a1 1 0 1 1-2 0 1 1 0 0 1 2 0z"
+                  />
+                </svg>
+              </button>
+              <div class="dropdown-menu dropdown-menu-end shadow-sm p-3 restaurants-info-menu">
+                <p class="small text-secondary mb-0">
+                  Usiamo la tua posizione e un raggio in chilometri; i risultati arrivano da
+                  <strong>Google Places</strong> (stessi dati che vedi su Maps: nome, indirizzo, link e
+                  valutazioni). Orari e menu possono cambiare: controlla sempre la scheda del locale.
+                </p>
+              </div>
+            </div>
+          </div>
 
           <div class="mb-3">
             <label class="form-label small mb-0" for="rest-radius">
@@ -681,24 +1017,82 @@ onUnmounted(() => {
 
           <div v-if="searchData?.restaurants.length" class="mb-3">
             <h3 class="h6 fw-semibold mb-2">Risultati</h3>
-            <div class="restaurant-search-map-wrap mb-3">
+            <p class="small text-secondary mb-2">
+              Tocca un pin sulla mappa per aprire il dettaglio del locale nell’elenco sotto.
+            </p>
+            <div
+              v-if="searchMapMarkers.length > 0"
+              id="restaurant-search-map"
+              class="restaurant-search-map-wrap mb-3"
+            >
               <RestaurantMiniMap
-                v-if="searchMapMarkers.length > 0"
                 :markers="searchMapMarkers"
-                height="320px"
+                :focus-place-key="focusedSearchResultKey"
+                height="min(52vh, 26rem)"
+                @place-click="onSearchMapPlaceClick"
               />
             </div>
-            <ul class="list-unstyled mb-0">
+            <ul class="list-unstyled mb-0 restaurant-search-results">
               <li
                 v-for="(item, idx) in searchData.restaurants"
+                :id="`search-result-${searchResultPlaceKey(item, idx)}`"
                 :key="item.placeId || `${item.mapsUrl}-${idx}`"
+                class="mb-2 search-result-item"
+                :class="{
+                  'search-result-item--highlight':
+                    highlightedSearchResultKey === searchResultPlaceKey(item, idx),
+                }"
               >
-                <RestaurantPlaceCard
-                  :item="item"
-                  variant="search"
-                  :add-pending="addingFromSearchId === (item.placeId ?? item.mapsUrl)"
-                  @add="addFromSearch(item)"
-                />
+                <div class="accordion accordion-flush border rounded overflow-hidden bg-body">
+                  <div class="accordion-item border-0">
+                    <h2 class="accordion-header">
+                      <button
+                        class="accordion-button py-2 px-3 restaurants-accordion-btn restaurants-search-accordion-btn"
+                        :class="{ collapsed: !isSearchExpanded(searchResultPlaceKey(item, idx)) }"
+                        type="button"
+                        :aria-expanded="isSearchExpanded(searchResultPlaceKey(item, idx))"
+                        @click="toggleSearchAccordion(searchResultPlaceKey(item, idx))"
+                      >
+                        <span
+                          class="d-flex flex-nowrap align-items-center gap-2 w-100 text-start min-w-0"
+                        >
+                          <span class="fw-semibold text-truncate min-w-0">{{ item.name }}</span>
+                          <span
+                            v-if="item.rating != null"
+                            class="text-nowrap small text-secondary flex-shrink-0"
+                            aria-label="Valutazione Google"
+                          >
+                            <span class="text-warning" aria-hidden="true">★</span>
+                            {{ item.rating.toFixed(1) }}
+                          </span>
+                          <span
+                            v-if="item.categoryLabel"
+                            class="badge rounded-pill bg-success-subtle text-success-emphasis border border-success-subtle small fw-normal flex-shrink-0 text-truncate restaurants-search-badge"
+                            :title="item.categoryLabel"
+                          >
+                            {{ item.categoryLabel }}
+                          </span>
+                        </span>
+                      </button>
+                    </h2>
+                    <div
+                      class="collapse bg-light"
+                      :class="{ show: isSearchExpanded(searchResultPlaceKey(item, idx)) }"
+                    >
+                      <div class="accordion-body p-3 pt-2">
+                        <RestaurantPlaceCard
+                          :item="item"
+                          variant="search"
+                          suppress-header
+                          :has-map-coords="searchItemHasMapCoords(item)"
+                          :add-pending="addingFromSearchId === (item.placeId ?? item.mapsUrl)"
+                          @add="addFromSearch(item)"
+                          @show-on-map="onShowSearchResultOnMap(item, idx)"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </li>
             </ul>
             <p v-if="restaurantsWithoutMapCoords.length" class="small text-secondary mt-2 mb-0">
@@ -774,12 +1168,19 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-.restaurants-main {
-  padding-top: 0.5rem;
+/* Shell allineata a Lista spesa / Todo (safe-area, padding verticale) */
+.shopping-page {
+  min-height: 100dvh;
+  padding-top: max(0.35rem, var(--app-safe-top));
+  padding-bottom: max(0.75rem, var(--app-safe-bottom));
 }
 
-.restaurants-page {
-  max-width: 42rem;
+.shopping-main {
+  padding-top: 0.25rem;
+}
+
+.restaurants-inner {
+  padding-bottom: 0.25rem;
 }
 
 .restaurant-saved-list li:last-child {
@@ -789,5 +1190,61 @@ onUnmounted(() => {
 .restaurant-search-map-wrap {
   border-radius: 0.75rem;
   overflow: hidden;
+}
+
+.restaurant-saved-map-wrap {
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
+
+.saved-list-item--highlight {
+  outline: 2px solid var(--bs-primary);
+  outline-offset: 2px;
+  border-radius: 0.5rem;
+  transition: outline-color 0.2s ease;
+}
+
+.search-result-item--highlight {
+  outline: 2px solid var(--bs-primary);
+  outline-offset: 2px;
+  border-radius: 0.5rem;
+  transition: outline-color 0.2s ease;
+}
+
+.restaurant-autocomplete-gps-btn:focus-visible {
+  box-shadow: 0 0 0 0.2rem rgba(var(--bs-primary-rgb), 0.35);
+}
+
+/* Intestazioni accordion compatte, una sola riga quando chiuse */
+.restaurants-page .restaurants-accordion-btn {
+  white-space: nowrap;
+  overflow: hidden;
+  min-height: 2.75rem;
+  justify-content: flex-start;
+}
+
+.restaurants-page .restaurants-accordion-btn .text-truncate {
+  min-width: 0;
+}
+
+.restaurants-page #accordion-our-restaurants > .accordion-item {
+  overflow: visible;
+}
+
+.restaurants-section-info-wrap {
+  flex-shrink: 0;
+}
+
+.restaurants-info-menu {
+  max-width: min(100vw - 2rem, 22rem);
+}
+
+.restaurants-info-btn:focus-visible {
+  box-shadow: 0 0 0 0.2rem rgba(var(--bs-primary-rgb), 0.28);
+  border-radius: 50%;
+}
+
+.restaurants-page .restaurants-search-accordion-btn .restaurants-search-badge {
+  max-width: 7.5rem;
 }
 </style>

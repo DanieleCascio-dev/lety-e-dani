@@ -46,4 +46,6 @@ export type RestaurantMapMarker = {
   lng: number
   label?: string
   kind: 'user' | 'place'
+  /** Chiave stabile per collegare click sulla mappa alla riga in elenco */
+  placeKey?: string
 }
