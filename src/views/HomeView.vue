@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { RouterLink } from "vue-router";
 import NavCartIcon from "@/components/icons/NavCartIcon.vue";
+import NavHeartIcon from "@/components/icons/NavHeartIcon.vue";
 import NavRestaurantIcon from "@/components/icons/NavRestaurantIcon.vue";
 import NavTodoIcon from "@/components/icons/NavTodoIcon.vue";
 </script>
@@ -29,6 +30,23 @@ import NavTodoIcon from "@/components/icons/NavTodoIcon.vue";
               <span class="fw-semibold">Spesa</span>
               <span class="small text-secondary d-none d-sm-inline"
                 >Articoli da comprare</span
+              >
+            </span>
+          </RouterLink>
+        </li>
+        <li>
+          <RouterLink
+            to="/lista-desideri"
+            class="home-tile d-flex align-items-center gap-3 text-decoration-none text-body rounded-3 border bg-white px-3 py-3"
+            aria-label="Lista dei desideri"
+          >
+            <span class="home-tile-icon text-primary" aria-hidden="true">
+              <NavHeartIcon />
+            </span>
+            <span class="d-flex flex-column min-w-0 text-start flex-grow-1">
+              <span class="fw-semibold">Desideri</span>
+              <span class="small text-secondary d-none d-sm-inline"
+                >Link e anteprime prodotti</span
               >
             </span>
           </RouterLink>

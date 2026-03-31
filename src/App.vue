@@ -3,6 +3,7 @@
   import { RouterLink, RouterView, useRoute, useRouter } from "vue-router";
   import { useAppStorage, signOutUser } from "@/composables/useAppStorage";
   import { resetTodoState } from "@/composables/useTodoLists";
+  import { resetWishlistState } from "@/composables/useWishlist";
   import { getSupabaseClient } from "@/lib/supabase";
   import FeatureAnnouncementModal from "@/components/FeatureAnnouncementModal.vue";
   import { HOME_FEATURE_ANNOUNCEMENT_ID } from "@/config/featureAnnouncements";
@@ -39,7 +40,10 @@
   );
 
   watch(appUserSessionValid, (ok) => {
-    if (!ok) resetTodoState();
+    if (!ok) {
+      resetTodoState();
+      resetWishlistState();
+    }
   });
 
   function useSupabaseAuth(): boolean {
@@ -121,7 +125,8 @@
         >
           <div
             v-if="showAppSubNav"
-            class="app-subnav app-nav-scroll flex-grow-1 min-w-0 py-1"
+            class="app-subnav app-nav-scroll flex-grow-1 min-w-0"
+            :class="route.name === 'wishlist' ? 'py-0 app-subnav--compact' : 'py-1'"
           >
             <ul
               class="list-unstyled d-flex flex-row flex-nowrap gap-1 mb-0 align-items-center"
@@ -314,19 +319,32 @@
       v-if="route.name !== 'login'"
       :announcement-id="HOME_FEATURE_ANNOUNCEMENT_ID"
     >
-      <template #title>Bentornat*!</template>
-      <p class="mb-2 fw-semibold">Ecco cosa c’è di nuovo:</p>
+      <template #title>Novità: Desideri</template>
+      <p class="mb-2 text-body-secondary">
+        Una <strong>wishlist condivisa</strong>: raccogli i link dei prodotti che ti interessano,
+        da qualsiasi sito, in un unico posto.
+      </p>
+      <p class="fw-semibold mb-3">Cosa puoi fare</p>
       <ul class="mb-0 ps-3">
         <li class="mb-2">
-          <strong>Cose da fare</strong>: nuova sezione per le attività quotidiane, con
-          <strong>liste multiple</strong>, voci da spuntare, modifica e rimozione — in sync con Supabase
-          come la lista della spesa, così restate allineat* su telefono e desktop.
+          <strong>Aggiungi da link</strong>: incolla l’URL e ottieni titolo, immagine e prezzo quando
+          l’anteprima è disponibile.
+        </li>
+        <li class="mb-2">
+          <strong>Più liste</strong>: crea o rinomina le liste dal menu e passa da una all’altra; tutto
+          resta sincronizzato tra i vostri account (come Spesa e Todo).
+        </li>
+        <li class="mb-2">
+          <strong>Stato prodotto</strong>: segna come <em>comprato</em> o <em>archiviato</em> dal menu
+          della card — su mobile puoi anche <strong>scorrere la card</strong> a destra o a sinistra.
         </li>
         <li>
-          Stesso <strong>segnaposto colore</strong> del profilo accanto alle voci; puoi creare o rinominare
-          le liste e passare da una all’altra dal menu in alto.
+          <strong>Note</strong>: annotazioni private sulla card per ricordare taglie, colori o promozioni.
         </li>
       </ul>
+      <p class="mt-3 mb-0 small text-secondary">
+        Trovi la sezione <strong>Desideri</strong> nella barra in alto, accanto a Home e Spesa.
+      </p>
     </FeatureAnnouncementModal>
   </div>
 </template>
@@ -442,5 +460,14 @@
   .app-subnav-item.router-link-active:hover {
     color: var(--bs-primary);
     background-color: rgba(var(--bs-primary-rgb), 0.14);
+  }
+
+  .app-subnav--compact .app-subnav-item {
+    min-height: 2.65rem;
+    padding: 0.22rem 0.4rem;
+  }
+
+  .app-subnav--compact .app-subnav-icon {
+    transform: scale(0.92);
   }
 </style>

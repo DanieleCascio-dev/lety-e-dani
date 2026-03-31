@@ -24,3 +24,8 @@ verify_jwt = false
 # Deploy: supabase functions deploy vegan-offers
 [functions.vegan-offers]
 verify_jwt = false
+
+# Anteprima Open Graph / JSON-LD per lista desideri
+# Deploy: supabase functions deploy link-preview
+[functions.link-preview]
+verify_jwt = false
