@@ -24,6 +24,8 @@ export type PlaceDetailsResult = {
   googleReviewCount: number | null
 }
 
+export type AutocompleteMode = 'food' | 'geo'
+
 export function useRestaurantPlaceSuggest() {
   const loading = ref(false)
   const error = ref<string | null>(null)
@@ -32,6 +34,7 @@ export function useRestaurantPlaceSuggest() {
     input: string,
     latitude: number | undefined,
     longitude: number | undefined,
+    options?: { mode?: AutocompleteMode },
   ): Promise<AutocompleteSuggestion[]> {
     error.value = null
     const q = input.trim()
@@ -55,6 +58,9 @@ export function useRestaurantPlaceSuggest() {
       const body: Record<string, unknown> = {
         action: 'autocomplete',
         input: q,
+      }
+      if (options?.mode === 'geo') {
+        body.autocompleteMode = 'geo'
       }
       if (
         latitude != null &&

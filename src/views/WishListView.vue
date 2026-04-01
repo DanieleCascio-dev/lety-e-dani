@@ -27,7 +27,7 @@
     priceBadgeKind,
   } from "@/lib/wishlistNormalize";
   import { friendlyErrorMessage, notesPreview } from "@/lib/wishlistUi";
-  import { useWishlistSwipe } from "@/composables/useWishlistSwipe";
+  import { useShoppingSwipeReveal } from "@/composables/useShoppingSwipeReveal";
 
   const {
     wishLists,
@@ -75,6 +75,23 @@
   const titleDraft = ref("");
   const notesDraft = ref<Record<string, string>>({});
   const savingNotesId = ref<string | null>(null);
+
+  const swipeReveal = useShoppingSwipeReveal({ revealPx: 64 });
+
+  function hasOpenSwipeReveal(): boolean {
+    return Object.values(swipeReveal.tx).some((v) => v !== 0);
+  }
+
+  function onSwipeRevealEdit(it: WishlistItem) {
+    swipeReveal.snapClosed(it.id);
+    startEditTitle(it);
+  }
+
+  function onSwipeRevealRemove(it: WishlistItem) {
+    swipeReveal.snapClosed(it.id);
+    removeItemTarget.value = it;
+    removeItemModalOpen.value = true;
+  }
 
   const listMenuOpen = ref(false);
   const listMenuRoot = ref<HTMLElement | null>(null);
@@ -132,6 +149,16 @@
       previewDebounce = null;
       void tryAutoPreview();
     }, 450);
+  });
+
+  watch(editingTitleId, async (id) => {
+    if (id) swipeReveal.closeAll();
+    if (!id) return;
+    await nextTick();
+    const el = document.getElementById(`wish-edit-${id}`);
+    if (!(el instanceof HTMLInputElement)) return;
+    el.focus();
+    el.select();
   });
 
   const displayedItems = computed(() => {
@@ -288,46 +315,6 @@
     await setItemStatus(it.id, status);
   }
 
-  const swipeFlash = ref<string | null>(null);
-  let swipeFlashTimerId: ReturnType<typeof setTimeout> | null = null;
-
-  function showSwipeFlash(msg: string) {
-    swipeFlash.value = msg;
-    if (swipeFlashTimerId) clearTimeout(swipeFlashTimerId);
-    swipeFlashTimerId = setTimeout(() => {
-      swipeFlash.value = null;
-      swipeFlashTimerId = null;
-    }, 1800);
-  }
-
-  function swipeVibrate() {
-    if (typeof navigator !== "undefined" && navigator.vibrate) {
-      try {
-        navigator.vibrate(12);
-      } catch {
-        /* ignore */
-      }
-    }
-  }
-
-  const {
-    onTouchStart: swipeTouchStart,
-    onTouchEnd: swipeTouchEnd,
-    onTouchCancel: swipeTouchCancel,
-  } = useWishlistSwipe({
-    canSwipe: (it) => it.status === "active",
-    onSwipeLeft: async (it) => {
-      await markStatus(it, "dismissed");
-      showSwipeFlash("Archiviato");
-      swipeVibrate();
-    },
-    onSwipeRight: async (it) => {
-      await markStatus(it, "purchased");
-      showSwipeFlash("Segnato come comprato");
-      swipeVibrate();
-    },
-  });
-
   function toggleDetail(id: string) {
     detailExpanded.value = {
       ...detailExpanded.value,
@@ -350,6 +337,7 @@
   }
 
   function toggleCardMenu(id: string) {
+    if (openCardMenuId.value !== id) swipeReveal.closeAll();
     openCardMenuId.value = openCardMenuId.value === id ? null : id;
   }
 
@@ -366,6 +354,21 @@
     closeCardMenu();
     removeItemTarget.value = it;
     removeItemModalOpen.value = true;
+  }
+
+  function onCardMenuMarkPurchased(it: WishlistItem) {
+    closeCardMenu();
+    void markStatus(it, "purchased");
+  }
+
+  function onCardMenuDismiss(it: WishlistItem) {
+    closeCardMenu();
+    void markStatus(it, "dismissed");
+  }
+
+  function onCardMenuRestore(it: WishlistItem) {
+    closeCardMenu();
+    void markStatus(it, "active");
   }
 
   function closeRemoveItemModal() {
@@ -511,7 +514,6 @@
     document.removeEventListener("pointerdown", onDocumentPointerDown, true);
     document.removeEventListener("keydown", onDocumentKeydown, true);
     if (previewDebounce) clearTimeout(previewDebounce);
-    if (swipeFlashTimerId) clearTimeout(swipeFlashTimerId);
   });
 
   function onDocumentPointerDown(ev: PointerEvent) {
@@ -523,10 +525,17 @@
     if (openCardMenuId.value && t instanceof Element) {
       if (!t.closest(".wish-item-menu")) closeCardMenu();
     }
+    if (t instanceof Element && !t.closest(".shopping-swipe-row")) {
+      swipeReveal.closeAll();
+    }
   }
 
   function onDocumentKeydown(ev: KeyboardEvent) {
     if (ev.key !== "Escape") return;
+    if (hasOpenSwipeReveal()) {
+      swipeReveal.closeAll();
+      return;
+    }
     if (removeItemModalOpen.value) {
       if (!removeItemSubmitting.value) closeRemoveItemModal();
       return;
@@ -584,8 +593,8 @@
       class="container-fluid px-3 px-sm-4 wish-inner wish-scroll-pad"
       style="max-width: 32rem"
     >
-      <header class="wish-screen-head mb-3">
-        <h1 class="h5 fw-bold mb-0 text-body">Desideri</h1>
+      <header class="wish-screen-head mb-2">
+        <h1 class="wish-page-title text-body mb-0">Desideri</h1>
         <p class="small text-secondary mt-1 mb-0 wish-screen-sub">
           Link da più siti, un solo posto. Lista condivisa.
         </p>
@@ -737,47 +746,47 @@
 
       <div
         v-if="items.length"
-        class="wish-pills-wrap mb-3"
+        class="wish-filter-pills-wrap mb-3"
         role="tablist"
         aria-label="Filtra articoli"
       >
-        <div class="wish-pills d-flex gap-1 p-1 rounded-pill">
+        <div class="wish-filter-pills">
           <button
             type="button"
-            class="wish-pill flex-grow-1 text-center"
+            class="wish-filter-pills__btn touch-manipulation text-truncate"
             role="tab"
             :aria-selected="filterMode === 'active'"
-            :class="{ 'wish-pill--active': filterMode === 'active' }"
+            :class="{ 'is-active': filterMode === 'active' }"
             @click="filterMode = 'active'"
           >
             In lista
           </button>
           <button
             type="button"
-            class="wish-pill flex-grow-1 text-center"
+            class="wish-filter-pills__btn touch-manipulation text-truncate"
             role="tab"
             :aria-selected="filterMode === 'purchased'"
-            :class="{ 'wish-pill--active': filterMode === 'purchased' }"
+            :class="{ 'is-active': filterMode === 'purchased' }"
             @click="filterMode = 'purchased'"
           >
             Comprati
           </button>
           <button
             type="button"
-            class="wish-pill flex-grow-1 text-center"
+            class="wish-filter-pills__btn touch-manipulation text-truncate"
             role="tab"
             :aria-selected="filterMode === 'dismissed'"
-            :class="{ 'wish-pill--active': filterMode === 'dismissed' }"
+            :class="{ 'is-active': filterMode === 'dismissed' }"
             @click="filterMode = 'dismissed'"
           >
             Archivio
           </button>
           <button
             type="button"
-            class="wish-pill flex-grow-1 text-center"
+            class="wish-filter-pills__btn touch-manipulation text-truncate"
             role="tab"
             :aria-selected="filterMode === 'all'"
-            :class="{ 'wish-pill--active': filterMode === 'all' }"
+            :class="{ 'is-active': filterMode === 'all' }"
             @click="filterMode = 'all'"
           >
             Tutti
@@ -802,14 +811,6 @@
       </div>
 
       <div
-        v-if="swipeFlash"
-        class="alert alert-success small py-2 px-3 mb-3 wish-toast"
-        role="status"
-      >
-        {{ swipeFlash }}
-      </div>
-
-      <div
         v-if="displayError"
         class="alert wish-alert-err small py-2 px-3 mb-3"
         role="alert"
@@ -825,31 +826,123 @@
         <li
           v-for="it in displayedItems"
           :key="it.id"
-          class="wish-item wish-item--surface card border-0 rounded-4 mb-3 overflow-hidden"
+          class="shopping-swipe-row wish-swipe-row list-group-item border-0 p-0 mb-2 touch-manipulation"
           :class="{
-            'wish-item--swipeable': it.status === 'active',
             'wish-item--purchased': it.status === 'purchased',
             'wish-item--dismissed': it.status === 'dismissed',
           }"
-          @touchstart.passive="swipeTouchStart($event, it)"
-          @touchend.passive="swipeTouchEnd($event, it)"
-          @touchcancel.passive="swipeTouchCancel"
         >
           <div
-            class="wish-item__head d-flex align-items-center justify-content-between gap-2 px-3 pt-3 pb-0"
+            v-if="editingTitleId === it.id"
+            class="wish-title-edit-shell rounded-3 border bg-body shadow-sm p-2"
+          >
+            <input
+              :id="'wish-edit-' + it.id"
+              v-model="titleDraft"
+              type="text"
+              class="form-control form-control-sm"
+              maxlength="500"
+              aria-label="Nome prodotto"
+              @blur="commitTitle(it.id)"
+              @keydown.enter.prevent="commitTitle(it.id)"
+              @keydown.escape.prevent="cancelEditTitle"
+            />
+          </div>
+          <div
+            v-else
+            class="shopping-swipe-track rounded-3 overflow-hidden wish-swipe-track"
+          >
+            <div class="shopping-swipe-actions shopping-swipe-actions--start">
+              <button
+                type="button"
+                class="btn btn-sm shopping-swipe-action shopping-swipe-action--edit wish-swipe-action wish-swipe-action--edit d-flex align-items-center justify-content-center border-0 h-100 w-100"
+                aria-label="Modifica nome prodotto"
+                title="Modifica"
+                @click.stop="onSwipeRevealEdit(it)"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="20"
+                  height="20"
+                  fill="currentColor"
+                  viewBox="0 0 16 16"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5 13.5 4.5 14.5 3.5 12.5 1.5 11.207 2.5zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293l6.5-6.5zm-9.761 5.175-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 0 1 5 12.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.468-.325z"
+                  />
+                </svg>
+              </button>
+            </div>
+            <div class="shopping-swipe-actions shopping-swipe-actions--end">
+              <button
+                type="button"
+                class="btn btn-sm shopping-swipe-action shopping-swipe-action--remove wish-swipe-action wish-swipe-action--remove d-flex align-items-center justify-content-center border-0 h-100 w-100"
+                aria-label="Rimuovi dalla lista"
+                title="Elimina"
+                @click.stop="onSwipeRevealRemove(it)"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="20"
+                  height="20"
+                  fill="currentColor"
+                  viewBox="0 0 16 16"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"
+                  />
+                  <path
+                    fill-rule="evenodd"
+                    d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"
+                  />
+                </svg>
+              </button>
+            </div>
+            <div
+              class="shopping-swipe-front wish-swipe-card-front d-flex flex-column w-100 min-w-0 touch-manipulation"
+              :class="[
+                it.status === 'purchased' || it.status === 'dismissed'
+                  ? 'shopping-swipe-front--done bg-body-tertiary'
+                  : 'bg-body',
+                swipeReveal.isDraggingRow(it.id)
+                  ? 'shopping-swipe-front--dragging'
+                  : '',
+                swipeReveal.isRevealed(it.id)
+                  ? 'shopping-swipe-front--open'
+                  : '',
+                swipeReveal.revealSide(it.id) === 'delete'
+                  ? 'shopping-swipe-front--peek-delete'
+                  : '',
+                swipeReveal.revealSide(it.id) === 'edit'
+                  ? 'shopping-swipe-front--peek-edit'
+                  : '',
+              ]"
+              :style="{
+                transform: `translate3d(${swipeReveal.getTx(it.id)}px,0,0)`,
+              }"
+              @pointerdown="(e) => swipeReveal.onPointerDown(e, it.id)"
+              @pointermove="swipeReveal.onPointerMove"
+              @pointerup="swipeReveal.onPointerUp"
+              @pointercancel="swipeReveal.onPointerCancel"
+            >
+          <div
+            class="wish-item__head d-flex align-items-center gap-2 px-2 pt-2 pb-0 min-w-0"
           >
             <a
               :href="it.url"
               target="_blank"
               rel="noopener noreferrer"
-              class="wish-item__domain d-inline-flex align-items-center gap-1 small fw-semibold text-primary text-break text-decoration-none"
+              class="wish-item__domain d-flex align-items-center gap-1 min-w-0 flex-grow-1 small fw-semibold text-primary text-decoration-none"
+              :title="domainLabel(it.url, it.siteName)"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
-                width="14"
-                height="14"
+                width="13"
+                height="13"
                 fill="currentColor"
-                class="flex-shrink-0 opacity-75"
+                class="wish-item__domain-icon flex-shrink-0 opacity-80"
                 viewBox="0 0 16 16"
                 aria-hidden="true"
               >
@@ -862,9 +955,13 @@
                   d="M16 .5a.5.5 0 0 0-.5-.5h-5a.5.5 0 0 0 0 1h3.793L6.146 9.146a.5.5 0 1 0 .708.708L15 1.707V5.5a.5.5 0 0 0 1 0v-5z"
                 />
               </svg>
-              {{ domainLabel(it.url, it.siteName) }}
+              <span class="wish-item__domain-text text-truncate">{{
+                domainLabel(it.url, it.siteName)
+              }}</span>
             </a>
-            <div class="wish-item-menu flex-shrink-0 position-relative">
+            <div
+              class="wish-item-menu flex-shrink-0 position-relative align-self-start"
+            >
               <button
                 type="button"
                 class="btn btn-light border-0 rounded-circle wish-item__more d-inline-flex align-items-center justify-content-center"
@@ -911,6 +1008,36 @@
                     Modifica nome
                   </button>
                 </li>
+                <li v-if="it.status === 'active'">
+                  <button
+                    type="button"
+                    class="dropdown-item small"
+                    role="menuitem"
+                    @click="onCardMenuMarkPurchased(it)"
+                  >
+                    Segna come comprato
+                  </button>
+                </li>
+                <li v-if="it.status === 'active'">
+                  <button
+                    type="button"
+                    class="dropdown-item small"
+                    role="menuitem"
+                    @click="onCardMenuDismiss(it)"
+                  >
+                    Archivia
+                  </button>
+                </li>
+                <li v-if="it.status !== 'active'">
+                  <button
+                    type="button"
+                    class="dropdown-item small"
+                    role="menuitem"
+                    @click="onCardMenuRestore(it)"
+                  >
+                    Rimetti in lista
+                  </button>
+                </li>
                 <li><hr class="dropdown-divider my-1" /></li>
                 <li>
                   <button
@@ -927,10 +1054,10 @@
           </div>
 
           <div
-            class="wish-item__body d-flex gap-3 align-items-start px-3 pt-2 pb-2"
+            class="wish-item__body d-flex gap-2 align-items-start px-2 pt-1 pb-2"
           >
             <div
-              class="wish-item__media flex-shrink-0 rounded-3 overflow-hidden bg-body-tertiary position-relative"
+              class="wish-item__media wish-item__media--card flex-shrink-0 rounded-3 overflow-hidden position-relative"
             >
               <div class="ratio ratio-1x1 wish-item__thumb">
                 <img
@@ -994,89 +1121,78 @@
                 Link potrebbe non essere aggiornato.
               </div>
 
-              <template v-if="editingTitleId === it.id">
-                <input
-                  v-model="titleDraft"
-                  type="text"
-                  class="form-control form-control-sm mb-2"
-                  maxlength="500"
-                  :aria-label="'Nome prodotto'"
-                  @blur="commitTitle(it.id)"
-                  @keydown.enter.prevent="commitTitle(it.id)"
-                  @keydown.escape.prevent="cancelEditTitle"
-                />
-              </template>
-              <h3 v-else class="wish-item__title fw-semibold text-body mb-2">
+              <h3 class="wish-item__title fw-semibold text-body mb-2">
                 {{ displayTitle(it) }}
               </h3>
 
-              <div
-                class="wish-price-chip d-inline-flex align-items-center gap-1 mb-2"
-                :class="{
-                  'wish-price-chip--ok': priceBadgeKind(it) === 'updated',
-                  'wish-price-chip--warn': priceBadgeKind(it) === 'unverified',
-                  'wish-price-chip--muted':
-                    priceBadgeKind(it) === 'unavailable',
-                }"
-              >
-                <span class="wish-price-chip__icon" aria-hidden="true">
-                  <svg
-                    v-if="priceBadgeKind(it) === 'updated'"
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="12"
-                    height="12"
-                    fill="currentColor"
-                    viewBox="0 0 16 16"
-                  >
-                    <path
-                      d="M10.97 4.97a.75.75 0 0 1 1.07 1.05l-3.99 4.99a.75.75 0 0 1-1.08.02L4.324 8.384a.75.75 0 1 1 1.06-1.06l2.094 2.093 3.473-4.425a.267.267 0 0 1 .02-.022z"
-                    />
-                  </svg>
-                  <svg
-                    v-else-if="priceBadgeKind(it) === 'unverified'"
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="12"
-                    height="12"
-                    fill="currentColor"
-                    viewBox="0 0 16 16"
-                  >
-                    <path
-                      d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"
-                    />
-                    <path
-                      d="M7.002 11a1 1 0 1 1 2 0 1 1 0 0 1-2 0zM7.1 4.995a.905.905 0 1 1 1.8 0l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 4.995z"
-                    />
-                  </svg>
-                  <svg
-                    v-else
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="12"
-                    height="12"
-                    fill="currentColor"
-                    viewBox="0 0 16 16"
-                  >
-                    <path
-                      d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"
-                    />
-                    <path
-                      d="M4.285 12.433a.5.5 0 0 0 .683-.183l3.5-3.5a.5.5 0 0 0 0-.708l-3.5-3.5a.5.5 0 0 0-.707.707L7.293 8 4.285 11.126a.5.5 0 0 0 .183.683z"
-                    />
-                  </svg>
-                </span>
-                <span class="wish-price-chip__text small fw-medium">{{
-                  badgeTextShort(priceBadgeKind(it))
-                }}</span>
+              <div class="wish-price-block mb-2 min-w-0">
+                <p
+                  v-if="priceLabel(it)"
+                  class="wish-item__price text-body mb-0 lh-sm"
+                >
+                  {{ priceLabel(it) }}
+                </p>
+                <div
+                  class="wish-price-chip wish-price-chip--integrated d-inline-flex align-items-center gap-1 mt-1"
+                  :class="{
+                    'wish-price-chip--ok': priceBadgeKind(it) === 'updated',
+                    'wish-price-chip--warn': priceBadgeKind(it) === 'unverified',
+                    'wish-price-chip--muted':
+                      priceBadgeKind(it) === 'unavailable',
+                  }"
+                >
+                  <span class="wish-price-chip__icon" aria-hidden="true">
+                    <svg
+                      v-if="priceBadgeKind(it) === 'updated'"
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="11"
+                      height="11"
+                      fill="currentColor"
+                      viewBox="0 0 16 16"
+                    >
+                      <path
+                        d="M10.97 4.97a.75.75 0 0 1 1.07 1.05l-3.99 4.99a.75.75 0 0 1-1.08.02L4.324 8.384a.75.75 0 1 1 1.06-1.06l2.094 2.093 3.473-4.425a.267.267 0 0 1 .02-.022z"
+                      />
+                    </svg>
+                    <svg
+                      v-else-if="priceBadgeKind(it) === 'unverified'"
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="11"
+                      height="11"
+                      fill="currentColor"
+                      viewBox="0 0 16 16"
+                    >
+                      <path
+                        d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"
+                      />
+                      <path
+                        d="M7.002 11a1 1 0 1 1 2 0 1 1 0 0 1-2 0zM7.1 4.995a.905.905 0 1 1 1.8 0l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 4.995z"
+                      />
+                    </svg>
+                    <svg
+                      v-else
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="11"
+                      height="11"
+                      fill="currentColor"
+                      viewBox="0 0 16 16"
+                    >
+                      <path
+                        d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"
+                      />
+                      <path
+                        d="M4.285 12.433a.5.5 0 0 0 .683-.183l3.5-3.5a.5.5 0 0 0 0-.708l-3.5-3.5a.5.5 0 0 0-.707.707L7.293 8 4.285 11.126a.5.5 0 0 0 .183.683z"
+                      />
+                    </svg>
+                  </span>
+                  <span class="wish-price-chip__text wish-price-chip__text--compact">{{
+                    badgeTextShort(priceBadgeKind(it))
+                  }}</span>
+                </div>
               </div>
-
               <p
-                v-if="priceLabel(it)"
-                class="wish-item__price fs-4 fw-bold text-body mb-3 lh-1"
-              >
-                {{ priceLabel(it) }}
-              </p>
-              <p
-                v-else-if="it.previewNote && !hasDisplayablePrice(it)"
-                class="small text-secondary mb-3"
+                v-if="!priceLabel(it) && it.previewNote && !hasDisplayablePrice(it)"
+                class="small text-secondary mb-2"
               >
                 {{ friendlyErrorMessage(it.previewNote) }}
               </p>
@@ -1085,7 +1201,7 @@
                 :href="it.url"
                 target="_blank"
                 rel="noopener noreferrer"
-                class="btn btn-primary w-100 py-2 rounded-3 mb-2 fw-semibold d-inline-flex align-items-center justify-content-center gap-2 wish-cta-primary"
+                class="btn btn-primary btn-sm w-100 rounded-3 py-2 fw-semibold d-inline-flex align-items-center justify-content-center gap-2 wish-cta-primary touch-manipulation"
               >
                 Apri sul sito
                 <svg
@@ -1107,135 +1223,86 @@
                 </svg>
               </a>
 
-              <div
-                v-if="it.status === 'active'"
-                class="d-flex align-items-center justify-content-center gap-2 mb-0"
+              <button
+                type="button"
+                class="wish-note-toggle btn border-0 w-100 rounded-3 py-2 px-2 mt-1 d-flex align-items-center gap-2 text-start touch-manipulation"
+                :class="{ 'wish-note-toggle--open': isDetailOpen(it.id) }"
+                :aria-expanded="isDetailOpen(it.id)"
+                @click="toggleDetail(it.id)"
               >
-                <button
-                  type="button"
-                  class="wish-ic-btn btn btn-light border"
-                  title="Comprato"
-                  aria-label="Segna come comprato"
-                  @click="markStatus(it, 'purchased')"
+                <span class="wish-note-label flex-shrink-0">Note</span>
+                <span
+                  v-if="notePreviewFor(it) && !isDetailOpen(it.id)"
+                  class="wish-note-preview small text-body text-truncate min-w-0"
+                  >{{ notePreviewFor(it) }}</span
                 >
+                <span
+                  v-else-if="!notePreviewFor(it) && !isDetailOpen(it.id)"
+                  class="wish-note-empty small text-truncate min-w-0"
+                  >Aggiungi una nota…</span
+                >
+                <span class="wish-note-chev flex-shrink-0 ms-auto" aria-hidden="true">
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
-                    width="20"
-                    height="20"
+                    width="14"
+                    height="14"
                     fill="currentColor"
                     viewBox="0 0 16 16"
-                    aria-hidden="true"
+                    class="wish-note-chev__svg"
+                    :class="{ 'wish-note-chev__svg--open': isDetailOpen(it.id) }"
                   >
                     <path
-                      d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0zm-3.97-3.03a.75.75 0 0 0-1.08.022L7.477 9.417 5.384 7.323a.75.75 0 0 0-1.06 1.06L6.97 11.03a.75.75 0 0 0 1.079-.02l3.992-4.99a.75.75 0 0 0-1.071-1.05z"
+                      fill-rule="evenodd"
+                      d="M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z"
                     />
                   </svg>
-                </button>
-                <button
-                  type="button"
-                  class="wish-ic-btn btn btn-light border"
-                  title="Archivia"
-                  aria-label="Non mi interessa, archivia"
-                  @click="markStatus(it, 'dismissed')"
+                </span>
+              </button>
+
+              <div
+                v-show="isDetailOpen(it.id)"
+                class="wish-notes-panel px-2 pb-2 pt-1 mt-1 border-top border-light-subtle"
+              >
+                <textarea
+                  :id="'notes-' + it.id"
+                  v-model="notesDraft[it.id]"
+                  class="form-control form-control-sm rounded-2 mb-1"
+                  rows="2"
+                  placeholder="Promemoria…"
+                  aria-label="Note prodotto"
+                />
+                <div
+                  class="d-flex justify-content-between align-items-center gap-2 flex-wrap"
                 >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="20"
-                    height="20"
-                    fill="currentColor"
-                    viewBox="0 0 16 16"
-                    aria-hidden="true"
+                  <button
+                    type="button"
+                    class="btn btn-sm btn-primary rounded-3 px-3 touch-manipulation"
+                    :disabled="savingNotesId === it.id"
+                    @click="saveNotes(it.id)"
                   >
-                    <path
-                      d="M0 2a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1v7.5a2.5 2.5 0 0 1-2.5 2.5h-9A2.5 2.5 0 0 1 1 12.5V5a1 1 0 0 1-1-1V2zm2 3v7.5A1.5 1.5 0 0 0 3.5 14h9a1.5 1.5 0 0 0 1.5-1.5V5H2zm13-3H1v2h14V2zM5 7.5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1-.5-.5z"
+                    <span
+                      v-if="savingNotesId === it.id"
+                      class="spinner-border spinner-border-sm me-1"
+                      aria-hidden="true"
                     />
-                  </svg>
-                </button>
-              </div>
-              <div v-else class="mb-0 text-center">
-                <button
-                  type="button"
-                  class="btn btn-sm btn-outline-primary rounded-pill px-3"
-                  @click="markStatus(it, 'active')"
-                >
-                  Rimetti in lista
-                </button>
+                    Salva
+                  </button>
+                  <span
+                    class="small text-secondary d-inline-flex align-items-center gap-1"
+                    :title="`Aggiunto da ${profileFor(it.createdBy).displayName}`"
+                  >
+                    <span
+                      class="shrink-0"
+                      :class="textIconClassFor(it.createdBy)"
+                      :style="textIconStyleFor(it.createdBy)"
+                      aria-hidden="true"
+                    />
+                    {{ new Date(it.createdAt).toLocaleDateString("it-IT") }}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
-
-          <button
-            type="button"
-            class="wish-note-toggle btn btn-light border-0 w-100 py-2 px-3 rounded-0 d-flex align-items-center justify-content-between gap-2 text-start"
-            :aria-expanded="isDetailOpen(it.id)"
-            @click="toggleDetail(it.id)"
-          >
-            <span class="min-w-0 flex-grow-1">
-              <span class="small fw-semibold text-body-secondary">Note: </span>
-              <span
-                v-if="notePreviewFor(it) && !isDetailOpen(it.id)"
-                class="d-block text-truncate small text-body mt-1"
-                >{{ notePreviewFor(it) }}</span
-              >
-              <span
-                v-else-if="!notePreviewFor(it) && !isDetailOpen(it.id)"
-                class="small text-secondary"
-                >Aggiungi un promemoria</span
-              >
-            </span>
-            <span
-              class="wish-note-toggle__chev flex-shrink-0 text-secondary small"
-              aria-hidden="true"
-              >{{ isDetailOpen(it.id) ? "▴" : "▾" }}</span
-            >
-          </button>
-
-          <div
-            v-show="isDetailOpen(it.id)"
-            class="px-3 pb-3 pt-0 border-top border-light bg-body-tertiary bg-opacity-50"
-          >
-            <label
-              class="form-label small text-secondary mb-1 mt-2"
-              :for="'notes-' + it.id"
-              >Note</label
-            >
-            <textarea
-              :id="'notes-' + it.id"
-              v-model="notesDraft[it.id]"
-              class="form-control form-control-sm rounded-3 mb-2"
-              rows="2"
-              placeholder="Promemoria solo per voi…"
-            />
-            <div
-              class="d-flex justify-content-between align-items-center flex-wrap gap-2"
-            >
-              <button
-                type="button"
-                class="btn btn-sm btn-dark rounded-pill px-3"
-                :disabled="savingNotesId === it.id"
-                @click="saveNotes(it.id)"
-              >
-                <span
-                  v-if="savingNotesId === it.id"
-                  class="spinner-border spinner-border-sm me-1"
-                  aria-hidden="true"
-                />
-                Salva note
-              </button>
-              <p class="small text-secondary mb-0 wish-item__meta">
-                <span
-                  class="d-inline-flex align-items-center gap-1"
-                  :title="`Aggiunto da ${profileFor(it.createdBy).displayName}`"
-                >
-                  <span
-                    class="shrink-0"
-                    :class="textIconClassFor(it.createdBy)"
-                    :style="textIconStyleFor(it.createdBy)"
-                    aria-hidden="true"
-                  />
-                  {{ new Date(it.createdAt).toLocaleDateString("it-IT") }}
-                </span>
-              </p>
             </div>
           </div>
         </li>
@@ -1529,14 +1596,14 @@
       <button
         v-if="selectedWishListId"
         type="button"
-        class="btn btn-primary rounded-circle shadow wish-fab"
+        class="btn btn-primary rounded-circle wish-fab touch-manipulation"
         aria-label="Aggiungi articolo da link"
         @click="openAddSheet"
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"
-          width="26"
-          height="26"
+          width="24"
+          height="24"
           fill="currentColor"
           viewBox="0 0 16 16"
           aria-hidden="true"
@@ -1563,19 +1630,19 @@
             <div class="wish-sheet__handle-wrap pt-2 pb-1" aria-hidden="true">
               <div class="wish-sheet__handle mx-auto" />
             </div>
-            <div class="px-3 pb-3 pb-safe">
-              <h2 id="wish-sheet-title" class="h6 fw-bold mb-1">
+            <div class="wish-sheet__body px-3 pb-3 pb-safe">
+              <h2 id="wish-sheet-title" class="wish-sheet__title mb-1">
                 Aggiungi da link
               </h2>
-              <p class="small text-secondary mb-3">
-                Incolla l’URL del prodotto. Controlla l’anteprima, poi salva.
+              <p class="wish-sheet__lead small text-secondary mb-3">
+                Incolla il link, controlla l’anteprima e salva.
               </p>
 
               <div
                 v-if="draftPreview && pendingHref"
-                class="card border-0 bg-body-secondary rounded-3 mb-3 overflow-hidden"
+                class="wish-sheet-preview card border border-light-subtle bg-body-tertiary bg-opacity-25 rounded-3 mb-3 overflow-hidden"
               >
-                <div class="d-flex gap-2 p-2 align-items-start">
+                <div class="d-flex gap-3 p-3 align-items-start">
                   <div
                     class="wish-item__media wish-item__media--sheet flex-shrink-0 rounded-3 overflow-hidden bg-body-tertiary position-relative"
                   >
@@ -1642,17 +1709,19 @@
               </div>
 
               <label
-                class="form-label small text-secondary"
+                class="wish-sheet__field-label form-label mb-1"
                 for="wish-url-sheet"
-                >Link prodotto</label
+                >Link</label
               >
-              <div class="input-group input-group-lg mb-2">
+              <div
+                class="input-group input-group-lg wish-sheet-url-row mb-2 shadow-sm"
+              >
                 <input
                   id="wish-url-sheet"
                   v-model="urlInput"
                   type="url"
                   inputmode="url"
-                  class="form-control rounded-3"
+                  class="form-control border-end-0 rounded-start-3"
                   placeholder="https://…"
                   autocomplete="off"
                   @paste="onPasteUrl"
@@ -1660,20 +1729,19 @@
                 />
                 <button
                   type="button"
-                  class="btn btn-outline-secondary rounded-3"
+                  class="btn btn-outline-secondary wish-sheet-preview-btn rounded-end-3 px-3"
                   :disabled="previewLoading"
-                  title="Aggiorna anteprima"
+                  title="Anteprima"
+                  aria-label="Carica anteprima"
                   @click="runPreview()"
                 >
                   <span
                     v-if="previewLoading"
                     class="spinner-border spinner-border-sm"
+                    role="status"
                     aria-hidden="true"
                   />
-                  <template v-else>
-                    <span class="d-none d-sm-inline">Anteprima</span>
-                    <span class="d-sm-none">↻</span>
-                  </template>
+                  <template v-else> Anteprima </template>
                 </button>
               </div>
 
@@ -1684,10 +1752,10 @@
                 {{ friendlyErrorMessage(addMessage) }}
               </p>
 
-              <div class="d-grid gap-2">
+              <div class="d-grid gap-2 wish-sheet-actions">
                 <button
                   type="button"
-                  class="btn btn-primary btn-lg rounded-3 py-3 fw-semibold"
+                  class="btn btn-primary btn-lg rounded-3 py-2 fw-semibold wish-sheet-save-btn touch-manipulation"
                   :disabled="!draftPreview || !pendingHref || savingDraft"
                   @click="saveFromPreview"
                 >
@@ -1700,7 +1768,7 @@
                 </button>
                 <button
                   type="button"
-                  class="btn btn-link text-secondary small"
+                  class="btn btn-link text-secondary btn-sm py-1 text-decoration-none"
                   @click="clearPreviewDraft"
                 >
                   Azzera anteprima
@@ -1731,28 +1799,16 @@
 
   .wish-inner {
     padding-bottom: 0.25rem;
-    --wish-space: 8px;
-    --wish-radius: 1rem;
   }
 
-  .wish-item--surface {
-    box-shadow:
-      0 1px 2px rgba(15, 23, 42, 0.04),
-      0 4px 14px rgba(15, 23, 42, 0.06);
-    transition:
-      box-shadow 0.2s ease,
-      transform 0.12s ease;
+  .wish-page-title {
+    font-size: 1.35rem;
+    font-weight: 650;
+    letter-spacing: -0.03em;
+    line-height: 1.15;
   }
 
-  .wish-item--surface:active {
-    transform: scale(0.995);
-  }
-
-  .wish-item--swipeable {
-    touch-action: pan-y;
-  }
-
-  .wish-pills-wrap {
+  .wish-filter-pills-wrap {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     margin-left: -2px;
@@ -1760,34 +1816,223 @@
     padding-bottom: 2px;
   }
 
-  .wish-pills {
+  .wish-filter-pills {
+    display: flex;
+    gap: 0.25rem;
+    padding: 0.25rem;
     background: var(--bs-secondary-bg);
-    min-height: 2.75rem;
+    border-radius: 999px;
+    border: 1px solid var(--bs-border-color-translucent);
+    min-width: min-content;
   }
 
-  .wish-pill {
-    border: 0;
-    background: transparent;
-    color: var(--bs-secondary-color);
-    font-size: 0.8125rem;
-    font-weight: 500;
-    padding: 0.5rem 0.65rem;
-    border-radius: 999px;
-    min-height: 2.5rem;
+  .wish-filter-pills__btn {
     flex: 1 1 0;
     min-width: 0;
+    border: none;
+    border-radius: 999px;
+    padding: 0.45rem 0.4rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--bs-secondary-color);
+    background: transparent;
+    transition:
+      background-color 0.2s ease,
+      color 0.2s ease,
+      box-shadow 0.2s ease;
   }
 
-  .wish-pill--active {
+  .wish-filter-pills__btn.is-active {
     background: var(--bs-body-bg);
     color: var(--bs-body-color);
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+    box-shadow:
+      0 1px 2px rgba(0, 0, 0, 0.06),
+      0 1px 3px rgba(0, 0, 0, 0.04);
+  }
+
+  .wish-filter-pills__btn:focus-visible {
+    outline: 2px solid var(--bs-primary);
+    outline-offset: 2px;
+  }
+
+  .wish-swipe-row.shopping-swipe-row {
+    position: relative;
+    overflow: visible;
+  }
+
+  /*
+   * Swipe layout solo dentro .wish-swipe-track: niente regole generiche .shopping-swipe-*
+   * che potrebbero mescolarsi in bundle con Spesa/Todo (stessi nomi classe).
+   */
+  .wish-swipe-track.shopping-swipe-track {
+    position: relative;
+    overflow: hidden;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(2.5rem, auto);
+    align-items: stretch;
+    min-height: 2.5rem;
+    --shopping-reveal-w: 64px;
+    background: var(--bs-tertiary-bg);
+  }
+
+  .wish-swipe-track > .shopping-swipe-actions,
+  .wish-swipe-track > .shopping-swipe-front {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .wish-swipe-track .shopping-swipe-actions {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    z-index: 0;
+    display: flex;
+    width: var(--shopping-reveal-w);
+    padding: 3px 0;
+    box-sizing: border-box;
+    pointer-events: none;
+  }
+
+  .wish-swipe-track .shopping-swipe-actions--start {
+    left: 0;
+    padding-left: 3px;
+  }
+
+  .wish-swipe-track .shopping-swipe-actions--end {
+    right: 0;
+    padding-right: 3px;
+  }
+
+  .wish-swipe-track .shopping-swipe-action {
+    min-height: 2.75rem;
+    min-width: 0;
+    padding: 0.25rem 0.15rem;
+    font-weight: 600;
+    border-radius: 0.2rem !important;
+    pointer-events: auto;
+    transition:
+      filter 0.15s ease,
+      transform 0.12s ease;
+  }
+
+  .wish-swipe-track .shopping-swipe-action:active {
+    filter: brightness(0.96);
+    transform: scale(0.98);
+  }
+
+  .wish-swipe-track .shopping-swipe-front {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    touch-action: pan-y;
+    transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+    border-radius: 0;
+  }
+
+  .wish-swipe-track .shopping-swipe-front--dragging {
+    transition: none;
+  }
+
+  .wish-swipe-track .shopping-swipe-front.bg-body {
+    background-color: var(--bs-body-bg) !important;
+  }
+
+  .wish-swipe-track .shopping-swipe-front.bg-body-tertiary {
+    background-color: var(--bs-tertiary-bg) !important;
+  }
+
+  .wish-swipe-card-front.shopping-swipe-front {
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+    border-radius: 0.75rem;
+  }
+
+  .wish-swipe-action.shopping-swipe-action {
+    min-height: 2.5rem;
+    border-radius: 0.5rem !important;
+    margin: 5px 3px;
+    box-shadow: none !important;
+  }
+
+  .wish-swipe-action--edit.shopping-swipe-action {
+    background: rgba(var(--bs-primary-rgb), 0.1) !important;
+    color: var(--bs-primary) !important;
+    box-shadow: inset 0 0 0 1px rgba(var(--bs-primary-rgb), 0.14) !important;
+  }
+
+  .wish-swipe-action--remove.shopping-swipe-action {
+    background: rgba(var(--bs-danger-rgb), 0.07) !important;
+    color: var(--bs-danger) !important;
+    box-shadow: inset 0 0 0 1px rgba(var(--bs-danger-rgb), 0.14) !important;
+  }
+
+  .wish-swipe-action--remove.shopping-swipe-action:active {
+    filter: brightness(0.97);
+  }
+
+  .wish-swipe-card-front.shopping-swipe-front--peek-delete:not(
+      .shopping-swipe-front--dragging
+    ) {
+    box-shadow:
+      3px 0 12px -5px rgba(15, 23, 42, 0.08),
+      0 0 0 1px rgba(0, 0, 0, 0.04);
+  }
+
+  .wish-swipe-card-front.shopping-swipe-front--peek-edit:not(
+      .shopping-swipe-front--dragging
+    ) {
+    box-shadow:
+      -3px 0 12px -5px rgba(15, 23, 42, 0.08),
+      0 0 0 1px rgba(0, 0, 0, 0.04);
+  }
+
+  .wish-swipe-card-front.shopping-swipe-front--open:not(
+      .shopping-swipe-front--dragging
+    ) {
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.04);
+  }
+
+  .wish-price-block {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0;
+  }
+
+  .wish-item__price {
+    font-size: 1.35rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
   }
 
   .wish-price-chip {
-    padding: 0.2rem 0.55rem 0.2rem 0.45rem;
+    padding: 0.14rem 0.45rem 0.14rem 0.38rem;
     border-radius: 999px;
-    font-size: 0.75rem;
+    font-size: 0.6875rem;
+  }
+
+  .wish-price-chip--integrated {
+    border: 1px solid rgba(0, 0, 0, 0.05);
+  }
+
+  .wish-price-chip--integrated.wish-price-chip--ok {
+    border-color: rgba(25, 135, 84, 0.2);
+  }
+
+  .wish-price-chip--integrated.wish-price-chip--warn {
+    border-color: rgba(255, 193, 7, 0.35);
+  }
+
+  .wish-price-chip--integrated.wish-price-chip--muted {
+    border-color: var(--bs-border-color-translucent);
+  }
+
+  .wish-price-chip__text--compact {
+    font-size: 0.625rem;
+    font-weight: 600;
+    line-height: 1.2;
   }
 
   .wish-price-chip--ok {
@@ -1811,20 +2056,13 @@
     opacity: 0.9;
   }
 
-  .wish-ic-btn {
-    width: 2.75rem;
-    height: 2.75rem;
-    padding: 0;
-    border-radius: 0.75rem !important;
-    color: var(--bs-secondary-color);
-  }
-
-  .wish-ic-btn:active {
-    transform: scale(0.96);
-  }
-
   .wish-cta-primary {
-    min-height: 2.75rem;
+    min-height: 2.5rem;
+    font-weight: 650;
+  }
+
+  .wish-cta-primary:active {
+    transform: scale(0.99);
   }
 
   .wish-alert-err {
@@ -1833,8 +2071,67 @@
     color: var(--bs-danger);
   }
 
+  .wish-note-label {
+    font-size: 0.625rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--bs-secondary-color);
+  }
+
+  .wish-note-preview {
+    line-height: 1.35;
+    color: var(--bs-body-color);
+  }
+
+  .wish-note-empty {
+    color: var(--bs-secondary-color);
+    font-style: italic;
+    opacity: 0.92;
+  }
+
+  .wish-note-chev__svg {
+    display: block;
+    color: var(--bs-secondary-color);
+    opacity: 0.75;
+    transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .wish-note-chev__svg--open {
+    transform: rotate(180deg);
+  }
+
   .wish-note-toggle {
-    border-top: 1px solid var(--bs-border-color-translucent) !important;
+    background: var(--bs-tertiary-bg) !important;
+    color: var(--bs-body-color);
+    transition:
+      background-color 0.18s ease,
+      transform 0.12s ease;
+  }
+
+  .wish-note-toggle--open {
+    background: var(--bs-secondary-bg) !important;
+  }
+
+  .wish-note-toggle:active {
+    transform: scale(0.997);
+  }
+
+  .wish-notes-panel {
+    animation: wish-notes-open 0.2s ease;
+  }
+
+  @keyframes wish-notes-open {
+    from {
+      opacity: 0.65;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  .wish-title-edit-shell {
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
   }
 
   .wish-scroll-pad {
@@ -1853,15 +2150,22 @@
 
   .wish-fab {
     position: fixed;
-    right: max(1rem, var(--app-safe-right));
-    bottom: max(1rem, var(--app-safe-bottom));
+    right: max(1.125rem, var(--app-safe-right));
+    bottom: max(1.125rem, var(--app-safe-bottom));
     z-index: 1030;
-    width: 3.5rem;
-    height: 3.5rem;
+    width: 3.25rem;
+    height: 3.25rem;
     padding: 0;
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    box-shadow:
+      0 1px 2px rgba(0, 0, 0, 0.06),
+      0 4px 16px rgba(var(--bs-primary-rgb), 0.28);
+  }
+
+  .wish-fab:active {
+    transform: scale(0.96);
   }
 
   .wish-sheet-backdrop {
@@ -1881,6 +2185,52 @@
     max-height: min(88dvh, 640px);
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
+    box-shadow: 0 -8px 32px rgba(15, 23, 42, 0.12);
+  }
+
+  .wish-sheet__body {
+    padding-top: 0.125rem;
+  }
+
+  .wish-sheet__title {
+    font-size: 1.0625rem;
+    font-weight: 650;
+    letter-spacing: -0.02em;
+    line-height: 1.25;
+    color: var(--bs-body-color);
+  }
+
+  .wish-sheet__lead {
+    line-height: 1.4;
+    opacity: 0.92;
+  }
+
+  .wish-sheet__field-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--bs-secondary-color);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .wish-sheet-url-row .form-control {
+    min-height: 2.75rem;
+    font-size: 0.9375rem;
+  }
+
+  .wish-sheet-preview-btn {
+    min-width: 5.5rem;
+    font-weight: 600;
+    border-color: var(--bs-border-color) !important;
+  }
+
+  .wish-sheet-save-btn {
+    min-height: 2.75rem;
+    font-weight: 650;
+  }
+
+  .wish-sheet-preview .wish-title-line {
+    font-size: 0.875rem;
   }
 
   .wish-sheet__handle {
@@ -1906,10 +2256,17 @@
   }
 
   .wish-item__more {
-    width: 2.75rem;
-    height: 2.75rem;
-    min-width: 2.75rem;
-    min-height: 2.75rem;
+    width: 2.5rem;
+    height: 2.5rem;
+    min-width: 2.5rem;
+    min-height: 2.5rem;
+    transition:
+      background-color 0.15s ease,
+      transform 0.12s ease;
+  }
+
+  .wish-item__more:active {
+    transform: scale(0.96);
   }
 
   /*
@@ -1917,7 +2274,12 @@
  * Bootstrap .ratio + .object-fit-cover sul <img>.
  */
   .wish-item__media {
-    width: clamp(5rem, 26vw, 6.875rem);
+    width: clamp(4.25rem, 22vw, 5.5rem);
+  }
+
+  .wish-item__media--card {
+    background: var(--bs-tertiary-bg);
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.045);
   }
 
   .wish-item__media--sheet {
@@ -1934,8 +2296,12 @@
     align-items: center;
     justify-content: center;
     text-align: center;
-    padding: 0.35rem;
-    background: var(--bs-tertiary-bg);
+    padding: 0.4rem;
+    background: linear-gradient(
+      160deg,
+      rgba(0, 0, 0, 0.02),
+      rgba(0, 0, 0, 0.04)
+    );
     color: var(--bs-secondary-color);
   }
 
@@ -1967,8 +2333,8 @@
   }
 
   .wish-item__title {
-    font-size: 1rem;
-    line-height: 1.35;
+    font-size: 0.9375rem;
+    line-height: 1.3;
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
@@ -2218,5 +2584,38 @@
 
   .wish-card--dismissed {
     opacity: 0.75;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .wish-swipe-track .shopping-swipe-front {
+      transition-duration: 0.12s;
+    }
+
+    .wish-swipe-track .shopping-swipe-action {
+      transition: none;
+    }
+
+    .wish-swipe-track .shopping-swipe-action:active {
+      transform: none;
+    }
+
+    .wish-notes-panel {
+      animation: none;
+    }
+
+    .wish-filter-pills__btn {
+      transition: none;
+    }
+
+    .wish-cta-primary:active,
+    .wish-item__more:active,
+    .wish-note-toggle:active,
+    .wish-fab:active {
+      transform: none;
+    }
+
+    .wish-note-chev__svg {
+      transition: none;
+    }
   }
 </style>

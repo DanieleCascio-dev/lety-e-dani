@@ -13,7 +13,9 @@ export function useVeganRestaurantSearch() {
   async function search(latitude: number, longitude: number, radiusKm: number) {
     const myGen = ++searchGeneration
     error.value = null
+    loading.value = true
 
+    try {
     const sb = getSupabaseClient()
     if (!sb) {
       error.value =
@@ -38,7 +40,6 @@ export function useVeganRestaurantSearch() {
       return
     }
 
-    loading.value = true
     try {
       type Payload = {
         error?: string
@@ -167,6 +168,7 @@ export function useVeganRestaurantSearch() {
     } catch (e) {
       error.value = 'Errore imprevisto durante la ricerca. Riprova.'
       console.error(e)
+    }
     } finally {
       loading.value = false
     }

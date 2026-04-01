@@ -16,6 +16,8 @@ type BodyIn = {
   latitude?: unknown;
   longitude?: unknown;
   placeId?: unknown;
+  /** "food" (default) = ristoranti/bar; "geo" = città / province / regioni per centro ricerca */
+  autocompleteMode?: unknown;
 };
 
 function jsonResponse(body: unknown, status = 200) {
@@ -192,18 +194,27 @@ Deno.serve(async (req) => {
     }
     const lat = numField(body.latitude);
     const lng = numField(body.longitude);
+    const modeRaw = strField(body.autocompleteMode, 16).toLowerCase();
+    const geoMode = modeRaw === "geo";
 
     const payload: Record<string, unknown> = {
       input,
       languageCode: "it",
       regionCode: "IT",
-      includedPrimaryTypes: [
-        "restaurant",
-        "cafe",
-        "bar",
-        "bakery",
-        "meal_takeaway",
-      ],
+      includedPrimaryTypes: geoMode
+        ? [
+          "locality",
+          "administrative_area_level_3",
+          "administrative_area_level_2",
+          "administrative_area_level_1",
+        ]
+        : [
+          "restaurant",
+          "cafe",
+          "bar",
+          "bakery",
+          "meal_takeaway",
+        ],
     };
     if (lat != null && lng != null && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
       payload.locationBias = {

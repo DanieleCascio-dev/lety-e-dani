@@ -20,6 +20,8 @@ const props = withDefaults(
     suppressHeader?: boolean
   /** Ha coordinate sulla mappa interna: mostra «Vedi sulla mappa» (saved o risultati ricerca) */
   hasMapCoords?: boolean
+    /** Padding e margini ridotti (liste mobile compatte) */
+    compact?: boolean
   }>(),
   {
     ourRating: 3,
@@ -28,6 +30,7 @@ const props = withDefaults(
     hideAddButton: false,
     suppressHeader: false,
     hasMapCoords: false,
+    compact: false,
   },
 )
 
@@ -43,11 +46,14 @@ const emit = defineEmits<{
 
 <template>
   <div
-    class="border rounded p-3 mb-2 bg-light restaurant-place-card"
-    :class="{
-      'border-primary-subtle': variant === 'saved' && !suppressHeader,
-      'border-0 mb-0': suppressHeader,
-    }"
+    class="border rounded bg-light restaurant-place-card"
+    :class="[
+      compact ? 'p-2 mb-0' : 'p-3 mb-2',
+      {
+        'border-primary-subtle': variant === 'saved' && !suppressHeader,
+        'border-0 mb-0': suppressHeader,
+      },
+    ]"
   >
     <template v-if="!suppressHeader">
       <div v-if="item.categoryLabel" class="mb-2">
@@ -69,44 +75,66 @@ const emit = defineEmits<{
         </div>
       </div>
     </template>
-    <div v-if="item.address" class="small text-secondary">{{ item.address }}</div>
-    <div class="small mt-1 text-secondary">
+    <div
+      v-if="item.address"
+      class="text-secondary"
+      :class="compact ? 'small restaurants-card-line-tight' : 'small'"
+    >
+      {{ item.address }}
+    </div>
+    <div
+      class="text-secondary"
+      :class="compact ? 'small mt-1 restaurants-card-line-tight' : 'small mt-1'"
+    >
       <span v-if="item.distanceKm != null">~{{ item.distanceKm }} km da te</span>
       <span v-if="item.distanceKm != null && item.notes"> · </span>
       <span v-if="item.notes">{{ item.notes }}</span>
     </div>
-    <div v-if="addedMeta" class="small text-secondary mt-2">{{ addedMeta }}</div>
+    <div
+      v-if="addedMeta"
+      class="text-secondary"
+      :class="compact ? 'small mt-1 restaurants-card-line-tight' : 'small mt-2'"
+    >
+      {{ addedMeta }}
+    </div>
 
-    <div v-if="variant === 'saved'" class="mt-3 pt-2 border-top border-light-subtle">
-      <div class="form-label small mb-1">La nostra valutazione</div>
+    <div
+      v-if="variant === 'saved'"
+      class="border-top border-light-subtle"
+      :class="compact ? 'mt-2 pt-1' : 'mt-3 pt-2'"
+    >
+      <div class="form-label small mb-1" :class="{ 'mb-0': compact }">La nostra valutazione</div>
       <OurRatingStars
         :model-value="ourRating ?? 3"
         @update:model-value="emit('update-our-rating', $event)"
       />
     </div>
 
-    <div class="d-flex flex-wrap gap-2 align-items-center mt-2">
+    <div
+      class="d-flex flex-wrap gap-2 align-items-center"
+      :class="compact ? 'mt-1' : 'mt-2'"
+    >
       <a
         v-if="item.mapsUrl"
         :href="item.mapsUrl"
         target="_blank"
         rel="noopener noreferrer"
-        class="small fw-semibold"
+        class="btn btn-sm btn-outline-primary restaurants-cta-external"
       >
-        Apri su Google Maps
+        Apri in Maps
       </a>
       <button
         v-if="hasMapCoords && (variant === 'saved' || variant === 'search')"
         type="button"
-        class="btn btn-sm btn-outline-secondary"
+        class="btn btn-sm restaurants-cta-internal touch-manipulation"
         @click="emit('show-on-map')"
       >
-        Vedi sulla mappa
+        Nella mappa
       </button>
       <button
         v-if="variant === 'search' && !hideAddButton"
         type="button"
-        class="btn btn-sm btn-outline-primary ms-auto"
+        class="btn btn-sm btn-primary ms-auto touch-manipulation"
         :disabled="addPending"
         @click="emit('add')"
       >
@@ -156,5 +184,28 @@ const emit = defineEmits<{
   min-height: 2.75rem;
   padding-left: 0.5rem;
   padding-right: 0.5rem;
+}
+
+/* Esterno = outline primary; mappa in-app = superficie secondaria */
+.restaurants-cta-external {
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.restaurants-cta-internal {
+  font-weight: 600;
+  background: var(--bs-secondary-bg);
+  color: var(--bs-body-color);
+  border: 1px solid var(--bs-border-color-translucent);
+}
+
+.restaurants-cta-internal:hover {
+  background: var(--bs-tertiary-bg);
+  color: var(--bs-body-color);
+}
+
+.restaurants-card-line-tight {
+  line-height: 1.3;
+  font-size: 0.8125rem;
 }
 </style>

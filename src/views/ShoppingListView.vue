@@ -14,8 +14,9 @@
     refreshGroceryData,
     useAppStorage,
   } from "@/composables/useAppStorage";
-  import type { GroceryItem } from "@/types/app";
+  import type { GroceryItem, UserId } from "@/types/app";
   import NavSparklesIcon from "@/components/icons/NavSparklesIcon.vue";
+  import { useShoppingSwipeReveal } from "@/composables/useShoppingSwipeReveal";
 
   const newItem = ref("");
   const {
@@ -47,6 +48,24 @@
 
   const listMenuOpen = ref(false);
   const listMenuRoot = ref<HTMLElement | null>(null);
+  /** Menu ⋮ azioni lista (nuova, AI, rinomina, elimina) */
+  const listActionsMenuOpen = ref(false);
+  const listActionsMenuRoot = ref<HTMLElement | null>(null);
+  const swipeReveal = useShoppingSwipeReveal({ revealPx: 100 });
+
+  function hasOpenSwipeReveal(): boolean {
+    return Object.values(swipeReveal.tx).some((v) => v !== 0);
+  }
+
+  function onSwipeRevealEdit(item: GroceryItem) {
+    swipeReveal.snapClosed(item.id);
+    void startItemEdit(item);
+  }
+
+  function onSwipeRevealRemove(item: GroceryItem) {
+    swipeReveal.snapClosed(item.id);
+    openItemRemoveModal(item);
+  }
 
   const createModalOpen = ref(false);
   const newListName = ref("");
@@ -86,6 +105,7 @@
   }
 
   watch(itemEditId, async (id) => {
+    if (id) swipeReveal.closeAll();
     if (!id) return;
     await nextTick();
     const el = itemEditInputRef.value;
@@ -96,21 +116,37 @@
 
   function toggleListMenu() {
     listMenuOpen.value = !listMenuOpen.value;
+    if (listMenuOpen.value) {
+      listActionsMenuOpen.value = false;
+    }
   }
 
   function closeListMenu() {
     listMenuOpen.value = false;
   }
 
+  function toggleListActionsMenu() {
+    listActionsMenuOpen.value = !listActionsMenuOpen.value;
+    if (listActionsMenuOpen.value) {
+      listMenuOpen.value = false;
+    }
+  }
+
+  function closeListActionsMenu() {
+    listActionsMenuOpen.value = false;
+  }
+
   function pickList(id: string) {
     void selectGroceryList(id);
     closeListMenu();
+    closeListActionsMenu();
   }
 
   function openCreateModal() {
     newListName.value = "";
     createModalOpen.value = true;
     closeListMenu();
+    closeListActionsMenu();
   }
 
   function closeCreateModal() {
@@ -121,6 +157,7 @@
     renameListName.value = currentGroceryListMeta.value?.title ?? "";
     renameModalOpen.value = true;
     closeListMenu();
+    closeListActionsMenu();
   }
 
   function closeRenameModal() {
@@ -144,6 +181,7 @@
     deleteTargetId.value = id;
     deleteModalOpen.value = true;
     closeListMenu();
+    closeListActionsMenu();
   }
 
   function closeDeleteModal() {
@@ -281,6 +319,7 @@
     chatListName.value = "";
     chatModalOpen.value = true;
     closeListMenu();
+    closeListActionsMenu();
   }
 
   function closeChatModal() {
@@ -310,10 +349,25 @@
       const root = listMenuRoot.value;
       if (root && t instanceof Node && !root.contains(t)) closeListMenu();
     }
+    if (listActionsMenuOpen.value) {
+      const root = listActionsMenuRoot.value;
+      if (root && t instanceof Node && !root.contains(t)) closeListActionsMenu();
+    }
+    if (t instanceof Element && !t.closest(".shopping-swipe-row")) {
+      swipeReveal.closeAll();
+    }
   }
 
   function onDocumentKeydown(ev: KeyboardEvent) {
     if (ev.key !== "Escape") return;
+    if (hasOpenSwipeReveal()) {
+      swipeReveal.closeAll();
+      return;
+    }
+    if (listActionsMenuOpen.value) {
+      closeListActionsMenu();
+      return;
+    }
     if (itemRemoveModalOpen.value) {
       if (!itemRemoveSubmitting.value) closeItemRemoveModal();
       return;
@@ -363,6 +417,11 @@
   });
 
   const userLabel = (id: string) => (id === "daniele" ? "Daniele" : "Letizia");
+
+  /** Iniziale per chip “chi ha aggiunto” (marker colore + lettera) */
+  function userMarkerLetter(id: UserId): string {
+    return id === "daniele" ? "D" : "L";
+  }
 
   const hasOpenItems = computed(() => currentList.value.some((i) => !i.done));
   const hasDoneItems = computed(() => currentList.value.some((i) => i.done));
@@ -427,12 +486,9 @@
         {{ groceriesError }}
       </div>
 
-      <div class="mb-3 shopping-list-controls">
-        <span class="form-label small text-secondary d-block mb-1 fw-semibold"
-          >Lista attiva</span
-        >
+      <div class="mb-2 shopping-list-controls">
         <div
-          class="d-flex flex-column flex-sm-row gap-2 align-items-stretch align-items-sm-center shopping-list-controls-row"
+          class="d-flex align-items-stretch gap-2 shopping-top-strip"
         >
           <div
             ref="listMenuRoot"
@@ -441,7 +497,7 @@
             <button
               id="list-picker-btn"
               type="button"
-              class="btn btn-sm btn-light border text-start w-100 d-flex align-items-center justify-content-between gap-2 py-2 shopping-list-picker-btn"
+              class="btn btn-light border-0 rounded-3 text-start w-100 d-flex align-items-center justify-content-between gap-2 py-2 px-3 shopping-list-picker-btn shopping-picker-trigger shadow-sm"
               :disabled="!groceryLists.length || groceryListsLoading"
               aria-haspopup="true"
               :aria-expanded="listMenuOpen"
@@ -458,7 +514,7 @@
                   :title="`Creata da ${userLabel(currentGroceryListMeta.createdBy)}`"
                   aria-hidden="true"
                 />
-                <span class="text-truncate">{{
+                <span class="text-truncate fw-medium">{{
                   groceryListDisplayName(currentGroceryListMeta)
                 }}</span>
               </span>
@@ -468,7 +524,7 @@
               >
             </button>
             <ul
-              class="dropdown-menu shadow-sm w-100 py-1"
+              class="dropdown-menu shadow-sm border-0 w-100 py-1"
               :class="{ show: listMenuOpen }"
               aria-labelledby="list-picker-btn"
             >
@@ -493,104 +549,101 @@
             </ul>
           </div>
           <div
-            class="d-flex gap-1 align-items-stretch shopping-list-toolbar"
+            v-if="groceryLists.length"
+            ref="listActionsMenuRoot"
+            class="dropdown flex-shrink-0 shopping-list-actions-dd"
           >
             <button
               type="button"
-              class="btn btn-sm btn-outline-primary d-inline-flex align-items-center justify-content-center shopping-toolbar-btn shopping-toolbar-icon-btn"
+              class="btn btn-light border-0 rounded-3 d-flex align-items-center justify-content-center shopping-more-btn shadow-sm"
               :disabled="groceryListsLoading"
-              aria-label="Nuova lista"
-              title="Nuova lista"
-              @click="openCreateModal"
+              aria-haspopup="true"
+              :aria-expanded="listActionsMenuOpen"
+              aria-label="Altre azioni sulla lista"
+              @click.stop="toggleListActionsMenu"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
-                width="16"
-                height="16"
+                width="18"
+                height="18"
                 fill="currentColor"
                 viewBox="0 0 16 16"
                 aria-hidden="true"
               >
                 <path
-                  d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"
+                  d="M9.5 13a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0zm0-5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0zm0-5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0z"
                 />
               </svg>
             </button>
-            <button
-              type="button"
-              class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center justify-content-center shopping-toolbar-btn shopping-toolbar-icon-btn shopping-ai-btn"
-              :disabled="chatListButtonDisabled || chatGroceryLoading"
-              aria-label="Crea una nuova lista della spesa con l’assistenza AI"
-              title="Crea lista con AI"
-              @click="openChatModal"
+            <ul
+              class="dropdown-menu dropdown-menu-end shadow border-0 py-1"
+              :class="{ show: listActionsMenuOpen }"
+              role="menu"
             >
-              <span class="shopping-ai-btn-inner">
-                <span
-                  v-if="chatGroceryLoading"
-                  class="spinner-border spinner-border-sm shopping-ai-btn-spinner"
-                  role="status"
-                  aria-hidden="true"
-                />
-                <NavSparklesIcon v-else class="shopping-ai-btn-icon" />
-              </span>
-            </button>
-            <button
-              type="button"
-              class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center justify-content-center shopping-toolbar-btn shopping-toolbar-icon-btn"
-              :disabled="listToolbarListActionsDisabled"
-              title="Modifica nome lista"
-              aria-label="Modifica nome lista"
-              @click="openRenameModal"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="16"
-                height="16"
-                fill="currentColor"
-                viewBox="0 0 16 16"
-                aria-hidden="true"
-              >
-                <path
-                  d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5 13.5 4.5 14.5 3.5 12.5 1.5 11.207 2.5zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293l6.5-6.5zm-9.761 5.175-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 0 1 5 12.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.468-.325z"
-                />
-              </svg>
-            </button>
-            <button
-              type="button"
-              class="btn btn-sm btn-outline-danger d-inline-flex align-items-center justify-content-center shopping-toolbar-btn shopping-toolbar-icon-btn"
-              :disabled="listToolbarListActionsDisabled"
-              title="Elimina lista"
-              aria-label="Elimina lista"
-              @click="openDeleteListForSelected"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="16"
-                height="16"
-                fill="currentColor"
-                viewBox="0 0 16 16"
-                aria-hidden="true"
-              >
-                <path
-                  d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"
-                />
-                <path
-                  fill-rule="evenodd"
-                  d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"
-                />
-              </svg>
-            </button>
+              <li role="none">
+                <button
+                  type="button"
+                  class="dropdown-item small d-flex align-items-center gap-2"
+                  role="menuitem"
+                  :disabled="groceryListsLoading"
+                  @click="openCreateModal"
+                >
+                  Nuova lista
+                </button>
+              </li>
+              <li role="none">
+                <button
+                  type="button"
+                  class="dropdown-item small d-flex align-items-center gap-2"
+                  role="menuitem"
+                  :disabled="chatListButtonDisabled || chatGroceryLoading"
+                  @click="openChatModal"
+                >
+                  <span
+                    v-if="chatGroceryLoading"
+                    class="spinner-border spinner-border-sm"
+                    role="status"
+                    aria-hidden="true"
+                  />
+                  <NavSparklesIcon v-else class="shopping-ai-menu-icon" />
+                  Lista con AI
+                </button>
+              </li>
+              <li><hr class="dropdown-divider my-1" /></li>
+              <li role="none">
+                <button
+                  type="button"
+                  class="dropdown-item small"
+                  role="menuitem"
+                  :disabled="listToolbarListActionsDisabled"
+                  @click="openRenameModal"
+                >
+                  Rinomina lista
+                </button>
+              </li>
+              <li role="none">
+                <button
+                  type="button"
+                  class="dropdown-item small text-danger"
+                  role="menuitem"
+                  :disabled="listToolbarListActionsDisabled"
+                  @click="openDeleteListForSelected"
+                >
+                  Elimina lista
+                </button>
+              </li>
+            </ul>
           </div>
         </div>
         <p
           v-if="!isGroceryCloud"
-          class="form-text text-secondary mb-0 mt-1 small"
+          class="form-text text-secondary mb-0 mt-1 small px-1"
         >
           Accedi con Supabase per usare la creazione lista con AI.
         </p>
         <p
           v-else-if="!appUserSessionValid"
-          class="form-text text-secondary mb-0 mt-1 small"
+          class="form-text text-secondary mb-0 mt-1 small px-1"
         >
           Effettua il login per usare la creazione lista con AI.
         </p>
@@ -938,43 +991,60 @@
         </div>
       </Teleport>
 
-      <div class="shopping-add-form mb-3">
-        <form class="mb-0" @submit.prevent="onSubmit">
-          <label
-            for="grocery-input"
-            class="form-label fw-semibold mb-1 d-block small text-secondary"
+      <form
+        class="shopping-add-form mb-2"
+        @submit.prevent="onSubmit"
+      >
+        <div
+          class="input-group input-group-sm shopping-add-inputgroup shadow-sm rounded-3 overflow-hidden border shopping-add-inputgroup-border"
+        >
+          <input
+            id="grocery-input"
+            v-model="newItem"
+            type="text"
+            class="form-control border-0 shopping-add-field"
+            placeholder="Aggiungi articolo"
+            autocomplete="off"
+            autocapitalize="sentences"
+            enterkeyhint="done"
+            maxlength="200"
+            :disabled="!selectedGroceryListId"
+            aria-label="Aggiungi articolo"
+          />
+          <button
+            type="submit"
+            class="btn btn-primary px-3 touch-manipulation shopping-add-btn"
+            :disabled="!newItem.trim() || !selectedGroceryListId"
+            aria-label="Aggiungi alla lista"
+            title="Aggiungi"
           >
-            Nuovo articolo
-          </label>
-          <div class="input-group input-group-sm">
-            <input
-              id="grocery-input"
-              v-model="newItem"
-              type="text"
-              class="form-control"
-              placeholder="Nome articolo…"
-              autocomplete="off"
-              autocapitalize="sentences"
-              enterkeyhint="done"
-              maxlength="200"
-              :disabled="!selectedGroceryListId"
-            />
-            <button
-              class="btn btn-primary touch-manipulation"
-              type="submit"
-              :disabled="!newItem.trim() || !selectedGroceryListId"
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="18"
+              height="18"
+              fill="currentColor"
+              viewBox="0 0 16 16"
+              aria-hidden="true"
             >
-              Aggiungi
-            </button>
-          </div>
-        </form>
-      </div>
+              <path
+                d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"
+              />
+            </svg>
+          </button>
+        </div>
+        <p class="shopping-marker-hint small text-secondary mb-0 mt-1 px-1">
+          Il segno colorato è <strong>chi ha aggiunto</strong> l’articolo.
+        </p>
+      </form>
 
       <div
         v-if="currentList.length"
-        class="mb-1 d-flex justify-content-end align-items-center shopping-bulk-action"
+        class="mb-1 d-flex justify-content-between align-items-center shopping-list-heading px-1"
       >
-        <div class="form-check mb-0 shopping-bulk-master d-flex align-items-center gap-1">
+        <span class="small fw-semibold text-secondary">Articoli</span>
+        <div
+          class="form-check mb-0 shopping-bulk-master d-flex align-items-center gap-2"
+        >
           <input
             id="shopping-bulk-master"
             ref="bulkMasterCheckboxRef"
@@ -996,59 +1066,37 @@
 
       <ul
         v-if="currentList.length"
-        class="list-group list-group-flush shadow-sm rounded overflow-hidden shopping-items-list"
+        class="list-group list-group-flush shopping-items-list rounded-3"
       >
         <li
           v-for="item in currentList"
           :key="item.id"
-          class="list-group-item d-flex align-items-center gap-2 gap-sm-3 py-1 shopping-list-row touch-manipulation shopping-list-row--compact"
-          :class="{ 'bg-body-tertiary': item.done }"
+          class="list-group-item border-0 border-bottom shopping-list-row touch-manipulation shopping-list-row--compact shopping-swipe-row p-0"
+          :class="{
+            'shopping-list-row--done': item.done,
+            'bg-body-tertiary': item.done,
+          }"
         >
-          <div
-            class="form-check m-0 flex-grow-1 d-flex align-items-center shopping-item-check"
-          >
-            <input
-              :id="`g-${item.id}`"
-              class="form-check-input shopping-check flex-shrink-0"
-              type="checkbox"
-              :checked="item.done"
-              @change="onGroceryDoneChange(item, $event)"
-            />
+          <template v-if="itemEditId === item.id">
             <div
-              class="min-w-0 flex-grow-1 d-flex flex-column align-items-stretch gap-0"
+              class="d-flex align-items-center gap-2 w-100 min-w-0 px-2 py-1 shopping-row-inner"
             >
-              <label
-                v-if="itemEditId !== item.id"
-                class="form-check-label user-select-none d-flex align-items-center gap-2 flex-wrap min-w-0 mb-0"
-                :for="`g-${item.id}`"
-                :aria-label="groceryItemLabelAriaLabel(item.text)"
-              >
-                <span
-                  class="item-text min-w-0 shopping-item-text-line"
-                  :class="{
-                    'text-decoration-line-through text-secondary': item.done,
-                  }"
-                  :title="groceryItemTitleIfTruncated(item.text)"
-                >
-                  {{ groceryItemDisplayText(item.text) }}
-                </span>
-                <span
-                  class="shrink-0 ms-1"
-                  :class="textIconClassFor(item.addedBy)"
-                  :style="textIconStyleFor(item.addedBy)"
-                  :title="`Aggiunto da ${userLabel(item.addedBy)}`"
-                  aria-hidden="true"
-                />
-              </label>
-              <div
-                v-else
-                class="d-flex align-items-center gap-2 min-w-0 w-100"
-              >
+              <input
+                :id="`g-${item.id}`"
+                class="form-check-input shopping-check shopping-check-row flex-shrink-0"
+                type="checkbox"
+                :checked="item.done"
+                :aria-label="
+                  item.done ? 'Segna come da comprare' : 'Segna come comprato'
+                "
+                @change="onGroceryDoneChange(item, $event)"
+              />
+              <div class="d-flex align-items-center gap-2 min-w-0 w-100 flex-grow-1">
                 <input
                   ref="itemEditInputRef"
                   v-model="itemEditText"
                   type="text"
-                  class="form-control form-control-sm shopping-item-edit-input"
+                  class="form-control form-control-sm shopping-item-edit-input border-0 bg-body rounded-3"
                   placeholder="Nome articolo…"
                   maxlength="200"
                   autocomplete="off"
@@ -1062,63 +1110,160 @@
                   @blur="onItemEditBlur"
                 />
                 <span
-                  class="shrink-0"
-                  :class="textIconClassFor(item.addedBy)"
-                  :style="textIconStyleFor(item.addedBy)"
+                  class="shopping-user-chip shrink-0 d-inline-flex align-items-center rounded-pill"
                   :title="`Aggiunto da ${userLabel(item.addedBy)}`"
-                  aria-hidden="true"
-                />
+                >
+                  <span
+                    class="shopping-user-chip__dot"
+                    :class="textIconClassFor(item.addedBy)"
+                    :style="textIconStyleFor(item.addedBy)"
+                    aria-hidden="true"
+                  />
+                  <span class="shopping-user-chip__letter">{{
+                    userMarkerLetter(item.addedBy)
+                  }}</span>
+                </span>
               </div>
             </div>
-          </div>
-          <div
-            class="d-flex align-items-center gap-1 shrink-0 align-self-center shopping-item-actions"
-          >
-            <button
-              v-if="itemEditId !== item.id"
-              type="button"
-              class="btn btn-outline-secondary btn-sm d-inline-flex align-items-center justify-content-center btn-icon-touch touch-manipulation"
-              title="Modifica nome"
-              aria-label="Modifica nome articolo"
-              @click.stop="startItemEdit(item)"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="16"
-                height="16"
-                fill="currentColor"
-                viewBox="0 0 16 16"
-                aria-hidden="true"
+          </template>
+          <div v-else class="shopping-swipe-track">
+            <div class="shopping-swipe-actions shopping-swipe-actions--start">
+              <button
+                type="button"
+                class="btn btn-sm shopping-swipe-action shopping-swipe-action--edit d-flex align-items-center justify-content-center rounded-0 border-0 h-100 w-100"
+                aria-label="Modifica nome articolo"
+                title="Modifica"
+                @click.stop="onSwipeRevealEdit(item)"
               >
-                <path
-                  d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5 13.5 4.5 14.5 3.5 12.5 1.5 11.207 2.5zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293l6.5-6.5zm-9.761 5.175-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 0 1 5 12.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.468-.325z"
-                />
-              </svg>
-            </button>
-            <button
-              type="button"
-              class="btn btn-outline-danger btn-sm d-inline-flex align-items-center justify-content-center btn-icon-touch touch-manipulation"
-              title="Rimuovi"
-              aria-label="Rimuovi articolo"
-              @click.stop="openItemRemoveModal(item)"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="16"
-                height="16"
-                fill="currentColor"
-                viewBox="0 0 16 16"
-                aria-hidden="true"
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="22"
+                  height="22"
+                  fill="currentColor"
+                  viewBox="0 0 16 16"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5 13.5 4.5 14.5 3.5 12.5 1.5 11.207 2.5zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293l6.5-6.5zm-9.761 5.175-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 0 1 5 12.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.468-.325z"
+                  />
+                </svg>
+              </button>
+            </div>
+            <div class="shopping-swipe-actions shopping-swipe-actions--end">
+              <button
+                type="button"
+                class="btn btn-sm shopping-swipe-action shopping-swipe-action--remove d-flex align-items-center justify-content-center rounded-0 border-0 h-100 w-100"
+                aria-label="Rimuovi articolo dalla lista"
+                title="Elimina"
+                @click.stop="onSwipeRevealRemove(item)"
               >
-                <path
-                  d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"
-                />
-                <path
-                  fill-rule="evenodd"
-                  d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"
-                />
-              </svg>
-            </button>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="22"
+                  height="22"
+                  fill="currentColor"
+                  viewBox="0 0 16 16"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"
+                  />
+                  <path
+                    fill-rule="evenodd"
+                    d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"
+                  />
+                </svg>
+              </button>
+            </div>
+            <div
+              class="shopping-swipe-front d-flex align-items-center gap-2 w-100 min-w-0 px-2 py-1 shopping-row-inner touch-manipulation"
+              :class="[
+                item.done
+                  ? 'shopping-swipe-front--done bg-body-tertiary'
+                  : 'bg-body',
+                swipeReveal.isDraggingRow(item.id)
+                  ? 'shopping-swipe-front--dragging'
+                  : '',
+                swipeReveal.isRevealed(item.id)
+                  ? 'shopping-swipe-front--open'
+                  : '',
+                swipeReveal.revealSide(item.id) === 'delete'
+                  ? 'shopping-swipe-front--peek-delete'
+                  : '',
+                swipeReveal.revealSide(item.id) === 'edit'
+                  ? 'shopping-swipe-front--peek-edit'
+                  : '',
+              ]"
+              :style="{
+                transform: `translate3d(${swipeReveal.getTx(item.id)}px,0,0)`,
+              }"
+              @pointerdown="(e) => swipeReveal.onPointerDown(e, item.id)"
+              @pointermove="swipeReveal.onPointerMove"
+              @pointerup="swipeReveal.onPointerUp"
+              @pointercancel="swipeReveal.onPointerCancel"
+            >
+              <input
+                :id="`g-${item.id}`"
+                class="form-check-input shopping-check shopping-check-row flex-shrink-0"
+                type="checkbox"
+                :checked="item.done"
+                :aria-label="
+                  item.done ? 'Segna come da comprare' : 'Segna come comprato'
+                "
+                @change="onGroceryDoneChange(item, $event)"
+              />
+              <div
+                class="min-w-0 flex-grow-1 d-flex flex-column align-items-stretch"
+              >
+                <label
+                  class="form-check-label user-select-none d-flex align-items-center gap-2 min-w-0 mb-0 w-100 shopping-item-label"
+                  :for="`g-${item.id}`"
+                  :aria-label="groceryItemLabelAriaLabel(item.text)"
+                >
+                  <span
+                    class="item-text min-w-0 shopping-item-text-line flex-grow-1 text-truncate"
+                    :class="{
+                      'text-decoration-line-through text-secondary': item.done,
+                    }"
+                    :title="groceryItemTitleIfTruncated(item.text)"
+                  >
+                    {{ groceryItemDisplayText(item.text) }}
+                  </span>
+                  <span
+                    v-if="item.done"
+                    class="shopping-done-tick text-success flex-shrink-0"
+                    aria-hidden="true"
+                    title="Comprato"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="14"
+                      height="14"
+                      fill="currentColor"
+                      viewBox="0 0 16 16"
+                    >
+                      <path
+                        d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z"
+                      />
+                    </svg>
+                  </span>
+                  <span
+                    class="shopping-user-chip shrink-0 d-inline-flex align-items-center rounded-pill"
+                    :title="`Aggiunto da ${userLabel(item.addedBy)}`"
+                  >
+                    <span
+                      class="shopping-user-chip__dot"
+                      :class="textIconClassFor(item.addedBy)"
+                      :style="textIconStyleFor(item.addedBy)"
+                      aria-hidden="true"
+                    />
+                    <span class="shopping-user-chip__letter">{{
+                      userMarkerLetter(item.addedBy)
+                    }}</span>
+                  </span>
+                </label>
+              </div>
+            </div>
           </div>
         </li>
       </ul>
@@ -1167,8 +1312,7 @@
     padding-bottom: 0.125rem;
   }
 
-  /* La riga lista + toolbar: priorità di spazio al selettore lista */
-  .shopping-list-controls-row {
+  .shopping-top-strip {
     min-width: 0;
   }
 
@@ -1178,77 +1322,244 @@
   }
 
   .shopping-list-picker-btn {
-    min-height: 2.5rem;
+    min-height: 2.75rem;
   }
 
-  /* Toolbar larghezza contenuto; Nuova compatta; icone fisse */
-  .shopping-list-toolbar {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.25rem;
-    align-items: stretch;
-    width: auto;
-    max-width: 100%;
-    flex: 0 0 auto;
+  .shopping-more-btn {
+    width: 2.75rem;
+    min-width: 2.75rem;
+    height: 2.75rem;
+    padding: 0;
   }
 
-  .shopping-list-toolbar > .shopping-toolbar-btn:first-of-type {
-    flex: 0 0 auto;
-    white-space: nowrap;
-  }
-
-  .shopping-list-toolbar > .shopping-toolbar-icon-btn {
-    flex: 0 0 var(--shopping-toolbar-icon-size, 2.375rem);
-    width: var(--shopping-toolbar-icon-size, 2.375rem);
-    min-width: var(--shopping-toolbar-icon-size, 2.375rem);
-    max-width: var(--shopping-toolbar-icon-size, 2.375rem);
-    box-sizing: border-box;
-  }
-
-  .shopping-toolbar-btn {
-    min-height: 2.3125rem;
-    padding-left: 0.35rem;
-    padding-right: 0.35rem;
-  }
-
-  .shopping-toolbar-icon-btn {
-    padding-left: 0.25rem;
-    padding-right: 0.25rem;
-  }
-
-  .shopping-toolbar-icon-btn svg {
-    display: block;
-  }
-
-  .shopping-ai-btn {
-    line-height: 0;
-  }
-
-  .shopping-ai-btn-inner {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    line-height: 0;
-    width: 100%;
-    height: 100%;
-    min-height: 1rem;
-  }
-
-  .shopping-ai-btn-icon,
-  .shopping-ai-btn :deep(svg) {
+  .shopping-ai-menu-icon {
     display: block;
     width: 1rem;
     height: 1rem;
     flex-shrink: 0;
-    margin: 0;
   }
 
-  .shopping-ai-btn-spinner {
-    flex-shrink: 0;
+  .shopping-ai-menu-icon :deep(svg) {
+    display: block;
+    width: 1rem;
+    height: 1rem;
+  }
+
+  .shopping-add-inputgroup-border {
+    border-color: var(--bs-border-color-translucent) !important;
+  }
+
+  .shopping-add-field {
+    min-height: 2.5rem;
+    padding-top: 0.45rem;
+    padding-bottom: 0.45rem;
+  }
+
+  .shopping-add-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 2.5rem;
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+  }
+
+  .shopping-marker-hint {
+    line-height: 1.3;
+    font-size: 0.7rem;
+    opacity: 0.88;
+  }
+
+  .shopping-list-heading {
+    min-height: 1.75rem;
+  }
+
+  .shopping-user-chip {
+    gap: 0.2rem;
+    padding: 0.08rem 0.35rem 0.08rem 0.28rem;
+    font-size: 0.58rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    line-height: 1;
+    color: var(--bs-secondary-color);
+    background: var(--bs-secondary-bg);
+    border: 1px solid var(--bs-border-color-translucent);
+    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04);
+  }
+
+  .shopping-user-chip__letter {
+    line-height: 1;
+    min-width: 0.55rem;
+    text-align: center;
+  }
+
+  .shopping-done-tick {
+    line-height: 0;
+    opacity: 0.92;
+  }
+
+  .shopping-items-list {
+    border: 1px solid var(--bs-border-color-translucent);
+    background: var(--bs-body-bg);
+    /* overflow visibile: altrimenti il menu ⋮ viene ritagliato e risulta “invisibile” */
+    overflow: visible;
+  }
+
+  .shopping-items-list > li:first-child {
+    border-top-left-radius: var(--bs-border-radius-lg);
+    border-top-right-radius: var(--bs-border-radius-lg);
+  }
+
+  .shopping-items-list > li:last-child {
+    border-bottom-left-radius: var(--bs-border-radius-lg);
+    border-bottom-right-radius: var(--bs-border-radius-lg);
+  }
+
+  /*
+   * Non usare opacity sul <li>: in CSS l’opacità si applica a tutto il sottoalbero.
+   */
+  .shopping-list-row--done .item-text {
+    opacity: 0.92;
   }
 
   .shopping-list-row--compact {
+    min-height: 2.35rem;
+    overflow: visible;
+  }
+
+  .shopping-swipe-row {
+    position: relative;
+    overflow: visible;
+  }
+
+  /*
+   * Griglia a cella unica: azioni (absolute) + front (in-flow) condividono l’area.
+   * Così il front copre sempre tutta la larghezza e le azioni restano nascoste fino allo swipe.
+   */
+  .shopping-swipe-track {
+    position: relative;
+    overflow: hidden;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(2.75rem, auto);
+    align-items: stretch;
+    --shopping-reveal-w: 100px;
     min-height: 2.75rem;
+    background: var(--bs-secondary-bg);
+  }
+
+  .shopping-swipe-track > .shopping-swipe-actions,
+  .shopping-swipe-track > .shopping-swipe-front {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .shopping-swipe-actions {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    z-index: 0;
+    display: flex;
+    align-items: stretch;
+    width: var(--shopping-reveal-w);
+    padding: 2px 0;
+    box-sizing: border-box;
+    pointer-events: none;
+  }
+
+  .shopping-swipe-actions--start {
+    left: 0;
+    padding-left: 2px;
+  }
+
+  .shopping-swipe-actions--end {
+    right: 0;
+    padding-right: 2px;
+  }
+
+  .shopping-swipe-action {
+    flex: 1 1 auto;
+    align-self: stretch;
+    min-height: 44px;
+    min-width: 100%;
+    padding: 0.35rem 0.2rem;
+    font-weight: 600;
+    border-radius: 0.35rem !important;
+    touch-action: manipulation;
+    pointer-events: auto;
+    transition:
+      filter 0.15s ease,
+      transform 0.12s ease;
+  }
+
+  .shopping-swipe-action:active {
+    filter: brightness(0.96);
+    transform: scale(0.98);
+  }
+
+  .shopping-swipe-action--edit {
+    background: var(--bs-primary-bg-subtle) !important;
+    color: var(--bs-primary) !important;
+  }
+
+  .shopping-swipe-action--remove {
+    background: var(--bs-danger-bg-subtle) !important;
+    color: var(--bs-danger-text-emphasis, var(--bs-danger)) !important;
+  }
+
+  .shopping-swipe-front {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    touch-action: pan-y;
+    transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+    /* Nessun radius: con bg-body sugli angoli altrimenti si intravede il layer azioni */
+    border-radius: 0;
+  }
+
+  .shopping-swipe-front.bg-body {
+    background-color: var(--bs-body-bg) !important;
+  }
+
+  .shopping-swipe-front.bg-body-tertiary {
+    background-color: var(--bs-tertiary-bg) !important;
+  }
+
+  .shopping-swipe-front--dragging {
+    transition: none;
+  }
+
+  /* Pannello “foglio” sopra il layer azioni: ombra direzionale + bordo leggero */
+  .shopping-swipe-front--open:not(.shopping-swipe-front--dragging) {
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.05);
+  }
+
+  .shopping-swipe-front--peek-delete:not(.shopping-swipe-front--dragging) {
+    box-shadow:
+      5px 0 14px -5px rgba(15, 23, 42, 0.12),
+      0 0 0 1px rgba(0, 0, 0, 0.05);
+  }
+
+  .shopping-swipe-front--peek-edit:not(.shopping-swipe-front--dragging) {
+    box-shadow:
+      -5px 0 14px -5px rgba(15, 23, 42, 0.12),
+      0 0 0 1px rgba(0, 0, 0, 0.05);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .shopping-swipe-front {
+      transition-duration: 0.12s;
+    }
+
+    .shopping-swipe-action {
+      transition: none;
+    }
+
+    .shopping-swipe-action:active {
+      transform: none;
+    }
   }
 
   .shopping-bulk-action {
@@ -1282,6 +1593,13 @@
     height: 1.35rem;
     margin-top: 0.2rem;
     flex-shrink: 0;
+  }
+
+  .shopping-check-row {
+    width: 1.3rem;
+    height: 1.3rem;
+    margin-top: 0;
+    align-self: center;
   }
 
   /* Spazio tra checkbox e nome (Bootstrap usa padding-left sul .form-check) */
