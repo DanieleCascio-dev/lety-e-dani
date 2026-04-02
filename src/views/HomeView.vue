@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { RouterLink } from "vue-router";
-import NavCartIcon from "@/components/icons/NavCartIcon.vue";
-import NavHeartIcon from "@/components/icons/NavHeartIcon.vue";
-import NavRestaurantIcon from "@/components/icons/NavRestaurantIcon.vue";
-import NavTodoIcon from "@/components/icons/NavTodoIcon.vue";
+  import { RouterLink } from "vue-router";
+  import NavCartIcon from "@/components/icons/NavCartIcon.vue";
+  import NavHeartIcon from "@/components/icons/NavHeartIcon.vue";
+  import NavRestaurantIcon from "@/components/icons/NavRestaurantIcon.vue";
+  import NavTodoIcon from "@/components/icons/NavTodoIcon.vue";
 </script>
 
 <template>
@@ -14,9 +14,11 @@ import NavTodoIcon from "@/components/icons/NavTodoIcon.vue";
     >
       <div class="home-hero mb-3 mb-sm-4">
         <p class="text-secondary small mb-2 mb-sm-3 lh-sm px-1 home-welcome">
-          Benvenut* nel nostro magico spazio!
+          Benvenut* nel nostro giardino!
         </p>
-        <h1 class="h5 fw-semibold mb-0 text-body home-title">Lety e Dani</h1>
+        <h1 class="h5 fw-semibold mb-0 text-body home-title">
+          Sunflower Garden
+        </h1>
       </div>
       <ul class="list-unstyled d-grid gap-2 mb-0">
         <li>
@@ -93,39 +95,39 @@ import NavTodoIcon from "@/components/icons/NavTodoIcon.vue";
 </template>
 
 <style scoped>
-.home-main {
-  padding-top: 1.25rem;
-  padding-bottom: 3rem;
-}
+  .home-main {
+    padding-top: 1.25rem;
+    padding-bottom: 3rem;
+  }
 
-.home-tile {
-  min-height: 3.25rem;
-  transition:
-    transform 0.1s ease,
-    box-shadow 0.12s ease,
-    border-color 0.12s ease;
-  user-select: none;
-  border-color: rgba(0, 0, 0, 0.08) !important;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
-}
+  .home-tile {
+    min-height: 3.25rem;
+    transition:
+      transform 0.1s ease,
+      box-shadow 0.12s ease,
+      border-color 0.12s ease;
+    user-select: none;
+    border-color: rgba(0, 0, 0, 0.08) !important;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  }
 
-.home-tile:hover {
-  border-color: rgba(var(--bs-primary-rgb), 0.35) !important;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-}
+  .home-tile:hover {
+    border-color: rgba(var(--bs-primary-rgb), 0.35) !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  }
 
-.home-tile:active {
-  transform: scale(0.99);
-}
+  .home-tile:active {
+    transform: scale(0.99);
+  }
 
-.home-tile:focus-visible {
-  outline: 0;
-  box-shadow: 0 0 0 0.2rem rgba(var(--bs-primary-rgb), 0.35);
-}
+  .home-tile:focus-visible {
+    outline: 0;
+    box-shadow: 0 0 0 0.2rem rgba(var(--bs-primary-rgb), 0.35);
+  }
 
-.home-tile-icon {
-  display: flex;
-  flex-shrink: 0;
-  line-height: 0;
-}
+  .home-tile-icon {
+    display: flex;
+    flex-shrink: 0;
+    line-height: 0;
+  }
 </style>

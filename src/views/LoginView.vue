@@ -62,7 +62,7 @@ async function onSubmit() {
         <p class="text-secondary small mb-2 mb-sm-3 lh-sm px-1 login-welcome">
           Bentornat* nel nostro spazio
         </p>
-        <h1 class="h5 fw-semibold mb-1 text-body">Lety e Dani</h1>
+        <h1 class="h5 fw-semibold mb-1 text-body">Sunflower Garden</h1>
         <p class="text-secondary small mb-0">Accedi con l’account che vi abbiamo abilitato.</p>
       </div>
 

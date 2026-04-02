@@ -35,10 +35,10 @@ export default defineConfig(({ mode }) => {
           'android_512.png',
         ],
         manifest: {
-          name: 'Lety e Dani',
-          short_name: 'Lety e Dani',
+          name: 'Sunflower Garden',
+          short_name: 'Sunflower Garden',
           description:
-            'Lista spesa, todo, wishlist e altro per Lety e Dani.',
+            'Lista spesa, todo, desideri e altro — Sunflower Garden.',
           lang: 'it',
           start_url: '/',
           scope: '/',
