@@ -56,7 +56,7 @@ function writePersistedSelectedGroceryListId(id: string | null) {
   }
 }
 
-const DEFAULT_PROFILES: Record<UserId, UserProfile> = {
+const DEFAULT_PROFILES = {
   daniele: {
     id: 'daniele',
     displayName: 'Daniele',
@@ -75,7 +75,7 @@ const DEFAULT_PROFILES: Record<UserId, UserProfile> = {
     navbarBg: null,
     pageBg: null,
   },
-}
+} as const satisfies Record<'daniele' | 'letizia', UserProfile>
 
 function parseIconShape(raw: unknown): IconShape {
   if (
@@ -98,7 +98,7 @@ function normalizeHexColor(raw: string | null | undefined): string | null {
   return null
 }
 
-function loadProfiles(): Record<UserId, UserProfile> {
+function loadProfiles(): Record<string, UserProfile> {
   const raw = sessionStorage.getItem(PROFILES_KEY)
   if (!raw) {
     sessionStorage.setItem(PROFILES_KEY, JSON.stringify(DEFAULT_PROFILES))
@@ -106,24 +106,30 @@ function loadProfiles(): Record<UserId, UserProfile> {
   }
   try {
     const parsed = JSON.parse(raw) as Partial<Record<UserId, Partial<UserProfile>>>
+    const baseD = DEFAULT_PROFILES.daniele
+    const baseL = DEFAULT_PROFILES.letizia
     return {
       daniele: {
-        ...DEFAULT_PROFILES.daniele,
+        ...baseD,
         ...parsed.daniele,
         id: 'daniele',
-        iconColor: normalizeHexColor(parsed.daniele?.iconColor as string) ?? DEFAULT_PROFILES.daniele.iconColor,
+        displayName: parsed.daniele?.displayName?.trim() || baseD.displayName,
+        textIcon: 'grocery-text-icon',
+        iconColor: normalizeHexColor(parsed.daniele?.iconColor as string) ?? baseD.iconColor,
         iconShape: parseIconShape(parsed.daniele?.iconShape),
-        navbarBg: normalizeHexColor(parsed.daniele?.navbarBg as string) ?? DEFAULT_PROFILES.daniele.navbarBg,
-        pageBg: normalizeHexColor(parsed.daniele?.pageBg as string) ?? DEFAULT_PROFILES.daniele.pageBg,
+        navbarBg: normalizeHexColor(parsed.daniele?.navbarBg as string) ?? baseD.navbarBg,
+        pageBg: normalizeHexColor(parsed.daniele?.pageBg as string) ?? baseD.pageBg,
       },
       letizia: {
-        ...DEFAULT_PROFILES.letizia,
+        ...baseL,
         ...parsed.letizia,
         id: 'letizia',
-        iconColor: normalizeHexColor(parsed.letizia?.iconColor as string) ?? DEFAULT_PROFILES.letizia.iconColor,
+        displayName: parsed.letizia?.displayName?.trim() || baseL.displayName,
+        textIcon: 'grocery-text-icon',
+        iconColor: normalizeHexColor(parsed.letizia?.iconColor as string) ?? baseL.iconColor,
         iconShape: parseIconShape(parsed.letizia?.iconShape),
-        navbarBg: normalizeHexColor(parsed.letizia?.navbarBg as string) ?? DEFAULT_PROFILES.letizia.navbarBg,
-        pageBg: normalizeHexColor(parsed.letizia?.pageBg as string) ?? DEFAULT_PROFILES.letizia.pageBg,
+        navbarBg: normalizeHexColor(parsed.letizia?.navbarBg as string) ?? baseL.navbarBg,
+        pageBg: normalizeHexColor(parsed.letizia?.pageBg as string) ?? baseL.pageBg,
       },
     }
   } catch {
@@ -132,7 +138,8 @@ function loadProfiles(): Record<UserId, UserProfile> {
 }
 
 function normalizeGroceryItem(i: Partial<GroceryItem> & { id: string; text: string }, fallbackBy: UserId): GroceryItem {
-  const addedBy = i.addedBy === 'letizia' || i.addedBy === 'daniele' ? i.addedBy : fallbackBy
+  const raw = i.addedBy != null ? String(i.addedBy).trim() : ''
+  const addedBy = (raw || fallbackBy) as UserId
   return {
     id: i.id,
     text: i.text,
@@ -205,16 +212,21 @@ function mapListRow(r: {
   created_by: string
   title?: string | null
 }): GroceryListMeta {
+  const by = String(r.created_by ?? '').trim()
   return {
     id: r.id,
     createdAt: r.created_at,
-    createdBy: r.created_by === 'letizia' ? 'letizia' : 'daniele',
+    createdBy: (by || 'daniele') as UserId,
     title: typeof r.title === 'string' ? r.title.trim() : '',
   }
 }
 
 export const activeUser = ref<UserId>('daniele')
-const userProfiles = ref<Record<UserId, UserProfile>>(loadProfiles())
+const userProfiles = ref<Record<string, UserProfile>>(loadProfiles())
+
+/** Spazio condiviso corrente (prima membership; fase 1 = un garden per utente). */
+export const currentGarden = ref<{ id: string; name: string } | null>(null)
+export const powerAdmin = ref(false)
 const groceriesLoading = ref(false)
 const groceriesError = ref<string | null>(null)
 const chatGroceryLoading = ref(false)
@@ -232,8 +244,8 @@ watch(selectedGroceryListId, (id) => {
 })
 
 const u = sessionStorage.getItem(ACTIVE_USER_KEY)
-if (u === 'daniele' || u === 'letizia') {
-  activeUser.value = u
+if (u && u.trim()) {
+  activeUser.value = u.trim() as UserId
 }
 
 let groceriesInitDone = false
@@ -387,7 +399,7 @@ async function fetchGroceriesFromSupabase(silent: boolean) {
         id: r.id,
         text: r.text,
         done: r.done,
-        addedBy: r.added_by === 'letizia' || r.added_by === 'daniele' ? r.added_by : fallbackBy,
+        addedBy: String(r.added_by || '').trim() || fallbackBy,
       },
       fallbackBy,
     ),
@@ -426,6 +438,7 @@ async function startGroceriesSync() {
 
 type AppUserRowDb = {
   app_role: string
+  power_admin?: boolean | null
   icon_color?: string | null
   icon_shape?: string | null
   navbar_bg?: string | null
@@ -434,15 +447,33 @@ type AppUserRowDb = {
 
 export const lastAppUserFetchError = ref<string | null>(null)
 
+function defaultProfileForRole(role: string): UserProfile {
+  const id = role as UserId
+  if (role === 'daniele' || role === 'letizia') {
+    return { ...DEFAULT_PROFILES[role], id }
+  }
+  const dn = role.length ? role.charAt(0).toUpperCase() + role.slice(1) : 'Utente'
+  return {
+    id,
+    displayName: dn,
+    textIcon: 'grocery-text-icon',
+    iconColor: null,
+    iconShape: 'circle',
+    navbarBg: null,
+    pageBg: null,
+  }
+}
+
 function applyAppUserRowToProfiles(row: AppUserRowDb) {
-  const role = row.app_role
-  if (role !== 'daniele' && role !== 'letizia') return
-  const uid = role as UserId
-  const prev = userProfiles.value[uid]
+  const role = String(row.app_role ?? '').trim()
+  if (!role) return
+  const prev = userProfiles.value[role] ?? defaultProfileForRole(role)
   userProfiles.value = {
     ...userProfiles.value,
-    [uid]: {
+    [role]: {
       ...prev,
+      id: role as UserId,
+      displayName: prev.displayName,
       iconColor:
         row.icon_color !== undefined ? normalizeHexColor(row.icon_color) : prev.iconColor,
       iconShape:
@@ -461,7 +492,7 @@ async function fetchAppUserRow(userId: string): Promise<AppUserRowDb | null> {
   if (!sb) return null
   const { data, error } = await sb
     .from('app_user')
-    .select('app_role, icon_color, icon_shape')
+    .select('app_role, power_admin, icon_color, icon_shape, navbar_bg, page_bg')
     .eq('user_id', userId)
     .maybeSingle()
   if (error) {
@@ -476,6 +507,7 @@ async function fetchAppUserRow(userId: string): Promise<AppUserRowDb | null> {
     }
     return {
       app_role: (legacy as { app_role: string }).app_role,
+      power_admin: false,
       icon_color: null,
       icon_shape: 'circle',
     }
@@ -484,13 +516,33 @@ async function fetchAppUserRow(userId: string): Promise<AppUserRowDb | null> {
   return data as AppUserRowDb
 }
 
-async function fetchAppRoleFromDb(userId: string): Promise<UserId | null> {
-  const row = await fetchAppUserRow(userId)
-  if (!row) return null
-  const r = row.app_role
-  if (r !== 'daniele' && r !== 'letizia') return null
-  applyAppUserRowToProfiles(row)
-  return r
+async function loadCurrentGardenFromSupabase() {
+  const sb = getSupabaseClient()
+  const uid = authSession.value?.user?.id
+  if (!sb || !uid) {
+    currentGarden.value = null
+    return
+  }
+  const { data, error } = await sb
+    .from('garden_member')
+    .select('garden_id, garden:garden_id (id, name)')
+    .eq('user_id', uid)
+    .limit(1)
+    .maybeSingle()
+  if (error || !data) {
+    currentGarden.value = null
+    return
+  }
+  const row = data as {
+    garden_id: string
+    garden: { id: string; name: string } | { id: string; name: string }[] | null
+  }
+  const g = Array.isArray(row.garden) ? row.garden[0] : row.garden
+  if (g?.id && typeof g.name === 'string') {
+    currentGarden.value = { id: g.id, name: g.name }
+  } else {
+    currentGarden.value = null
+  }
 }
 
 /**
@@ -500,9 +552,7 @@ export async function refreshAppUserProfileFromDb(): Promise<boolean> {
   const uid = authSession.value?.user?.id
   if (!uid) return false
   const row = await fetchAppUserRow(uid)
-  if (!row) return false
-  const r = row.app_role
-  if (r !== 'daniele' && r !== 'letizia') return false
+  if (!row || !String(row.app_role ?? '').trim()) return false
   applyAppUserRowToProfiles(row)
   return true
 }
@@ -578,9 +628,29 @@ export async function refreshGroceryData(options?: { silent?: boolean }) {
   const sb = getSupabaseClient()
   if (!sb || !appUserSessionValid.value) return
   const silent = options?.silent !== false
+  await loadCurrentGardenFromSupabase()
   await fetchGroceryListsFromSupabase(silent)
   await ensureSelectedListAfterFetch()
   await fetchGroceriesFromSupabase(silent)
+}
+
+/** Aggiorna nome spazio (RLS: solo membri del garden). */
+export async function updateGardenName(name: string): Promise<{ ok: boolean; error?: string }> {
+  const sb = getSupabaseClient()
+  const gid = currentGarden.value?.id
+  if (!sb || !gid || !appUserSessionValid.value) {
+    return { ok: false, error: 'Non autenticato o spazio non disponibile.' }
+  }
+  const trimmed = name.trim().slice(0, 120)
+  if (!trimmed) return { ok: false, error: 'Inserisci un nome.' }
+  const { error } = await sb.from('garden').update({ name: trimmed }).eq('id', gid)
+  if (error) return { ok: false, error: error.message }
+  currentGarden.value = { id: gid, name: trimmed }
+  return { ok: true }
+}
+
+export async function refreshGardenContext() {
+  await loadCurrentGardenFromSupabase()
 }
 
 /**
@@ -610,9 +680,12 @@ export async function syncSessionToAppUser(session: Session | null) {
   authSession.value = session
   const sb = getSupabaseClient()
   if (!sb) return
-  const role = await fetchAppRoleFromDb(session.user.id)
-  if (!role) {
+  const row = await fetchAppUserRow(session.user.id)
+  const role = row?.app_role != null ? String(row.app_role).trim() : ''
+  if (!row || !role) {
     appUserSessionValid.value = false
+    currentGarden.value = null
+    powerAdmin.value = false
     teardownGroceryRealtime()
     groceries.value = []
     groceryLists.value = []
@@ -621,8 +694,11 @@ export async function syncSessionToAppUser(session: Session | null) {
     await sb.auth.signOut()
     return
   }
+  applyAppUserRowToProfiles(row)
+  activeUser.value = role as UserId
+  powerAdmin.value = Boolean(row.power_admin)
+  await loadCurrentGardenFromSupabase()
   appUserSessionValid.value = true
-  activeUser.value = role
   await startGroceriesSync()
 }
 
@@ -716,9 +792,15 @@ export async function createGroceryList(name?: string): Promise<boolean> {
     persistLocalV2()
     return true
   }
+  const gid = currentGarden.value?.id
+  if (!gid) {
+    groceriesError.value =
+      'Nessuno spazio assegnato. Chiedi a un amministratore di aggiungerti a un garden in Gestione Garden.'
+    return false
+  }
   const { data, error } = await sb
     .from('grocery_lists')
-    .insert({ created_by: activeUser.value, title })
+    .insert({ created_by: activeUser.value, title, garden_id: gid })
     .select('id, created_at, created_by, title')
     .single()
   if (error) {
@@ -1134,11 +1216,11 @@ export function useAppStorage() {
   }
 
   function profileFor(userId: UserId): UserProfile {
-    return userProfiles.value[userId]
+    return userProfiles.value[userId] ?? defaultProfileForRole(userId)
   }
 
   function textIconClassFor(userId: UserId): string {
-    const p = userProfiles.value[userId]
+    const p = profileFor(userId)
     const shape = p.iconShape ?? 'circle'
     const parts = ['grocery-text-icon', `grocery-text-icon--shape-${shape}`]
     if (!p.iconColor) {
@@ -1150,7 +1232,7 @@ export function useAppStorage() {
   }
 
   function textIconStyleFor(userId: UserId): Record<string, string> | undefined {
-    const p = userProfiles.value[userId]
+    const p = profileFor(userId)
     if (!p.iconColor) return undefined
     return {
       background: p.iconColor,
@@ -1318,6 +1400,10 @@ export function useAppStorage() {
     veganOffersData,
     fetchVeganOffers,
     appUserSessionValid,
+    currentGarden,
+    powerAdmin,
+    updateGardenName,
+    refreshGardenContext,
     isGroceryCloud,
     currentList,
     createGroceryList,

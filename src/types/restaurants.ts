@@ -1,8 +1,10 @@
+import type { UserId } from '@/types/app'
+
 /** Riga tabella `saved_restaurants`. */
 export interface SavedRestaurant {
   id: string
   createdAt: string
-  createdBy: 'daniele' | 'letizia'
+  createdBy: UserId
   name: string
   mapsUrl: string
   /** Valutazione nostra 1–5 */

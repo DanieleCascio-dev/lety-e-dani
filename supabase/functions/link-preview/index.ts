@@ -355,9 +355,9 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: "Profilo app non trovato" }, 403);
   }
 
-  const role = (appRow as { app_role: string }).app_role;
-  if (role !== "daniele" && role !== "letizia") {
-    return jsonResponse({ error: "Ruolo non valido" }, 403);
+  const role = String((appRow as { app_role: string }).app_role ?? "").trim();
+  if (!role) {
+    return jsonResponse({ error: "Profilo app non valido" }, 403);
   }
 
   try {

@@ -30,8 +30,14 @@
 
   const route = useRoute();
   const router = useRouter();
-  const { activeUser, setActiveUser, appUserSessionValid, profileFor } =
-    useAppStorage();
+  const {
+    activeUser,
+    setActiveUser,
+    appUserSessionValid,
+    profileFor,
+    currentGarden,
+    powerAdmin,
+  } = useAppStorage();
   const { activeTheme } = useTheme();
 
   /** Nel tema scuro custom i colori pagina/nav da profilo non si mescolano al design system. */
@@ -306,6 +312,15 @@
             ></button>
           </div>
         </div>
+
+        <p
+          v-if="showAccountMenu && currentGarden"
+          class="small text-secondary mb-0 pb-1 text-truncate w-100 px-1"
+          :title="currentGarden.name"
+        >
+          Spazio:
+          <strong>{{ currentGarden.name }}</strong>
+        </p>
       </div>
     </nav>
 
@@ -332,6 +347,16 @@
             @click="closeProfileMenu"
           >
             Profilo
+          </RouterLink>
+        </li>
+        <li v-if="powerAdmin" role="none">
+          <RouterLink
+            class="dropdown-item"
+            role="menuitem"
+            :to="{ name: 'gardenAdmin' }"
+            @click="closeProfileMenu"
+          >
+            Gestione Garden
           </RouterLink>
         </li>
         <li><hr class="dropdown-divider" /></li>

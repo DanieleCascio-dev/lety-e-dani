@@ -1,4 +1,5 @@
-export type UserId = 'daniele' | 'letizia'
+/** Identità app (tabella `app_user.app_role`); i valori storici sono `daniele` | `letizia`. */
+export type UserId = string
 
 /** Forma del segnaposto colore (lista spesa, ecc.). */
 export type IconShape =
@@ -27,6 +28,7 @@ export interface UserProfile {
 export interface GroceryListMeta {
   id: string
   createdAt: string
+  /** `app_user.app_role` di chi ha creato la lista. */
   createdBy: UserId
   /** Nome mostrato prima della data; vuoto → solo “Lista del …”. */
   title: string

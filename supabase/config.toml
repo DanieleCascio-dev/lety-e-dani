@@ -29,3 +29,8 @@ verify_jwt = false
 # Deploy: supabase functions deploy link-preview
 [functions.link-preview]
 verify_jwt = false
+
+# Gestione Garden (power_admin); usa service role lato function
+# Deploy: supabase functions deploy garden-admin
+[functions.garden-admin]
+verify_jwt = false

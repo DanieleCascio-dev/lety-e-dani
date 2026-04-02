@@ -1,10 +1,12 @@
+import type { UserId } from '@/types/app'
+
 export type WishlistItemStatus = 'active' | 'purchased' | 'dismissed'
 
 export type WishlistItem = {
   id: string
   listId: string
   createdAt: string
-  createdBy: 'daniele' | 'letizia'
+  createdBy: UserId
   status: WishlistItemStatus
   url: string
   title: string | null

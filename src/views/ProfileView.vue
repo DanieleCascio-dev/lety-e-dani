@@ -13,7 +13,14 @@
   import type { IconShape } from "@/types/app";
 
   const route = useRoute();
-  const { activeUser, userProfiles, profileFor } = useAppStorage();
+  const {
+    activeUser,
+    userProfiles,
+    profileFor,
+    currentGarden,
+    refreshGardenContext,
+    updateGardenName,
+  } = useAppStorage();
   const { activeTheme, setTheme, themeOptions } = useTheme();
 
   const currentEmail = computed(() => authSession.value?.user?.email ?? "");
@@ -75,8 +82,34 @@
     pageBgHex.value = hexForColorInput(p.pageBg, DEFAULT_PAGE_HEX);
   }
 
+  const gardenNameDraft = ref("");
+  const gardenNameMsg = ref<string | null>(null);
+  const gardenNameSaving = ref(false);
+
+  watch(
+    currentGarden,
+    (g) => {
+      gardenNameDraft.value = g?.name ?? "";
+    },
+    { immediate: true },
+  );
+
+  async function saveGardenSpaceName() {
+    gardenNameMsg.value = null;
+    gardenNameSaving.value = true;
+    try {
+      const r = await updateGardenName(gardenNameDraft.value);
+      gardenNameMsg.value = r.ok
+        ? "Nome dello spazio aggiornato."
+        : (r.error ?? "Errore nel salvataggio.");
+    } finally {
+      gardenNameSaving.value = false;
+    }
+  }
+
   async function syncProfileFormFromStorage() {
     await refreshAppUserProfileFromDb();
+    await refreshGardenContext();
     await nextTick();
     if (route.name !== "profile") return;
     applyProfileToForm();
@@ -226,10 +259,59 @@
       <h1 class="h4 mb-3 fw-semibold">Profilo</h1>
       <p class="text-secondary small mb-4">
         Account
-        <strong>{{ activeUser === "daniele" ? "Daniele" : "Letizia" }}</strong>
+        <strong>{{ profileFor(activeUser).displayName }}</strong>
         — email, password, aspetto, colori dell’interfaccia e icona negli elenchi
         (lista spesa, ecc.).
       </p>
+
+      <section v-if="currentGarden" class="card shadow-sm border-0 mb-3">
+        <div class="card-body">
+          <h2 class="h6 mb-2">Nome dello spazio</h2>
+          <p class="small text-secondary mb-3">
+            Il nome è condiviso da tutti i membri dello stesso garden (lista
+            spesa, desideri, todo, locali).
+          </p>
+          <label for="profile-garden-name" class="form-label small">Nome</label>
+          <input
+            id="profile-garden-name"
+            v-model="gardenNameDraft"
+            type="text"
+            class="form-control mb-2"
+            maxlength="120"
+            autocomplete="organization"
+          />
+          <p
+            v-if="gardenNameMsg"
+            class="small mb-2"
+            :class="
+              gardenNameMsg.includes('aggiornato')
+                ? 'text-success'
+                : 'text-danger'
+            "
+          >
+            {{ gardenNameMsg }}
+          </p>
+          <button
+            type="button"
+            class="btn btn-primary btn-sm"
+            :disabled="gardenNameSaving"
+            @click="saveGardenSpaceName"
+          >
+            {{ gardenNameSaving ? "Salvataggio…" : "Salva nome spazio" }}
+          </button>
+        </div>
+      </section>
+
+      <section v-else class="card shadow-sm border-0 mb-3">
+        <div class="card-body">
+          <h2 class="h6 mb-2">Spazio condiviso</h2>
+          <p class="small text-secondary mb-0">
+            Non sei ancora assegnato a uno spazio (garden). Chiedi a un
+            amministratore di aggiungerti da Gestione Garden: finché non
+            succede, non vedrai liste condivise.
+          </p>
+        </div>
+      </section>
 
       <section class="card shadow-sm border-0 mb-3">
         <div class="card-body">

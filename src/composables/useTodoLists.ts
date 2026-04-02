@@ -5,7 +5,9 @@ import { getSupabaseClient } from '@/lib/supabase'
 import {
   activeUser,
   appUserSessionValid,
+  currentGarden,
   groceryListDisplayName,
+  refreshGardenContext,
 } from '@/composables/useAppStorage'
 
 const SELECTED_TODO_LIST_KEY = 'lety-dani:selected-todo-list-id'
@@ -42,10 +44,11 @@ function mapListRow(r: {
   created_by: string
   title?: string | null
 }): GroceryListMeta {
+  const by = String(r.created_by ?? '').trim()
   return {
     id: r.id,
     createdAt: r.created_at,
-    createdBy: r.created_by === 'letizia' ? 'letizia' : 'daniele',
+    createdBy: (by || 'daniele') as UserId,
     title: typeof r.title === 'string' ? r.title.trim() : '',
   }
 }
@@ -54,7 +57,8 @@ function normalizeTodoItem(
   i: Partial<GroceryItem> & { id: string; text: string },
   fallbackBy: UserId,
 ): TodoItem {
-  const addedBy = i.addedBy === 'letizia' || i.addedBy === 'daniele' ? i.addedBy : fallbackBy
+  const raw = i.addedBy != null ? String(i.addedBy).trim() : ''
+  const addedBy = (raw || fallbackBy) as UserId
   return {
     id: i.id,
     text: i.text,
@@ -211,6 +215,7 @@ export async function refreshTodoData(options?: { silent?: boolean }) {
   const sb = getSupabaseClient()
   if (!sb || !appUserSessionValid.value) return
   const silent = options?.silent !== false
+  await refreshGardenContext()
   await fetchTodoListsFromSupabase(silent)
   await ensureSelectedTodoListAfterFetch()
   await fetchTodosFromSupabase(silent)
@@ -246,9 +251,15 @@ export async function createTodoList(name?: string): Promise<boolean> {
     todosError.value = 'Le todo richiedono Supabase e login.'
     return false
   }
+  const gid = currentGarden.value?.id
+  if (!gid) {
+    todosError.value =
+      'Nessuno spazio assegnato. Chiedi a un amministratore di aggiungerti a un garden.'
+    return false
+  }
   const { data, error } = await sb
     .from('todo_lists')
-    .insert({ created_by: activeUser.value, title })
+    .insert({ created_by: activeUser.value, title, garden_id: gid })
     .select('id, created_at, created_by, title')
     .single()
   if (error) {

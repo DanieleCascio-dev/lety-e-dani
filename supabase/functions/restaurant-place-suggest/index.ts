@@ -141,9 +141,9 @@ async function requireUser(
   if (appErr || !appRow) {
     return jsonResponse({ error: "Profilo app non trovato" }, 403);
   }
-  const role = (appRow as AppUserRow).app_role;
-  if (role !== "daniele" && role !== "letizia") {
-    return jsonResponse({ error: "Ruolo non valido" }, 403);
+  const role = String((appRow as AppUserRow).app_role ?? "").trim();
+  if (!role) {
+    return jsonResponse({ error: "Profilo app non valido" }, 403);
   }
   return { user };
 }

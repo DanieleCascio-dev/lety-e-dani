@@ -2,7 +2,11 @@ import { createRouter, createWebHistory } from 'vue-router'
 import HomeView from '../views/HomeView.vue'
 import { authSession } from '@/auth/authSession'
 import { getSupabaseClient } from '@/lib/supabase'
-import { appUserSessionValid, authInitPromise } from '@/composables/useAppStorage'
+import {
+  appUserSessionValid,
+  authInitPromise,
+  powerAdmin,
+} from '@/composables/useAppStorage'
 import {
   isMainNavRouteName,
   readSavedMainNavRoute,
@@ -49,6 +53,11 @@ const router = createRouter({
       name: 'profile',
       component: () => import('../views/ProfileView.vue'),
     },
+    {
+      path: '/gestione-garden',
+      name: 'gardenAdmin',
+      component: () => import('../views/GardenAdminView.vue'),
+    },
   ],
 })
 
@@ -84,6 +93,10 @@ router.beforeEach(async (to) => {
     return true
   }
   if (!authed) return { name: 'login', query: { redirect: to.fullPath } }
+
+  if (to.name === 'gardenAdmin' && !powerAdmin.value) {
+    return { name: 'home' }
+  }
 
   const r = tryRestoreMainNav(to.name)
   return r === true ? true : r

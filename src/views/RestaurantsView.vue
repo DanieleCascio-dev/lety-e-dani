@@ -22,7 +22,7 @@ import type {
   VeganRestaurantSearchItem,
 } from '@/types/restaurants'
 
-const { activeUser, profileFor } = useAppStorage()
+const { activeUser, profileFor, currentGarden, refreshGardenContext } = useAppStorage()
 const route = useRoute()
 
 /** Evita race: più loadSaved in parallelo o completamento dopo navigazione via. */
@@ -176,7 +176,7 @@ function mapRow(r: {
   latitude?: number | null
   longitude?: number | null
 }): SavedRestaurant {
-  const role = r.created_by === 'letizia' ? 'letizia' : 'daniele'
+  const role = (String(r.created_by ?? '').trim() || 'daniele') as SavedRestaurant['createdBy']
   return {
     id: r.id,
     createdAt: r.created_at,
@@ -239,6 +239,7 @@ async function loadSaved() {
         'Salvare i ristoranti richiede Supabase e login. Configura .env.local e accedi.'
       return
     }
+    await refreshGardenContext()
     const { data, error } = await sb
       .from('saved_restaurants')
       .select(
@@ -398,8 +399,15 @@ async function submitPendingToList() {
     return
   }
   const rating = Math.min(5, Math.max(1, Math.round(formRating.value)))
+  const gid = currentGarden.value?.id
+  if (!gid) {
+    savedFormError.value =
+      'Nessuno spazio assegnato. Chiedi a un amministratore di aggiungerti a un garden.'
+    return
+  }
   const { error } = await sb.from('saved_restaurants').insert({
     created_by: activeUser.value,
+    garden_id: gid,
     name: d.name,
     maps_url: d.mapsUrl,
     rating,
@@ -478,8 +486,15 @@ async function addFromSearch(item: VeganRestaurantSearchItem) {
       savedFormError.value = 'Supabase non configurato.'
       return
     }
+    const gid = currentGarden.value?.id
+    if (!gid) {
+      savedFormError.value =
+        'Nessuno spazio assegnato. Chiedi a un amministratore di aggiungerti a un garden.'
+      return
+    }
     const { error } = await sb.from('saved_restaurants').insert({
       created_by: activeUser.value,
+      garden_id: gid,
       name: item.name,
       maps_url: item.mapsUrl,
       rating: 3,

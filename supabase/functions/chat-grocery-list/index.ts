@@ -205,10 +205,29 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: 'Profilo app non trovato' }, 403)
   }
 
-  const role = (appRow as AppUserRow).app_role
-  if (role !== 'daniele' && role !== 'letizia') {
-    return jsonResponse({ error: 'Ruolo non valido' }, 403)
+  const role = String((appRow as AppUserRow).app_role ?? '').trim()
+  if (!role) {
+    return jsonResponse({ error: 'Profilo app non valido' }, 403)
   }
+
+  const { data: memRow, error: memErr } = await supabase
+    .from('garden_member')
+    .select('garden_id')
+    .eq('user_id', user.id)
+    .limit(1)
+    .maybeSingle()
+
+  if (memErr || !memRow?.garden_id) {
+    return jsonResponse(
+      {
+        error:
+          'Nessuno spazio assegnato. Chiedi a un amministratore di aggiungerti a un garden.',
+      },
+      403,
+    )
+  }
+
+  const gardenId = memRow.garden_id as string
 
   const { data: itemRows, error: itemsErr } = await supabase.from('grocery_items').select('text')
   if (itemsErr) {
@@ -332,7 +351,7 @@ La risposta deve rispettare lo schema JSON richiesto (nessun markdown).`
 
   const { data: listRow, error: listErr } = await supabase
     .from('grocery_lists')
-    .insert({ created_by: role, title })
+    .insert({ created_by: role, title, garden_id: gardenId })
     .select('id')
     .single()
 

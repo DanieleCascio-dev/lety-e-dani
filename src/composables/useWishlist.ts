@@ -1,6 +1,6 @@
 import { computed, ref, watch } from 'vue'
 import type { RealtimeChannel } from '@supabase/supabase-js'
-import type { GroceryListMeta } from '@/types/app'
+import type { GroceryListMeta, UserId } from '@/types/app'
 import { getSupabaseClient } from '@/lib/supabase'
 import type {
   LinkPreviewPayload,
@@ -11,7 +11,9 @@ import { cleanProductTitle } from '@/lib/wishlistNormalize'
 import {
   activeUser,
   appUserSessionValid,
+  currentGarden,
   groceryListDisplayName,
+  refreshGardenContext,
 } from '@/composables/useAppStorage'
 
 const SELECTED_WISHLIST_LIST_KEY = 'lety-dani:selected-wishlist-list-id'
@@ -43,16 +45,18 @@ function mapListRow(r: {
   created_by: string
   title?: string | null
 }): GroceryListMeta {
+  const by = String(r.created_by ?? '').trim()
   return {
     id: r.id,
     createdAt: r.created_at,
-    createdBy: r.created_by === 'letizia' ? 'letizia' : 'daniele',
+    createdBy: (by || 'daniele') as import('@/types/app').UserId,
     title: typeof r.title === 'string' ? r.title.trim() : '',
   }
 }
 
 function mapRow(r: Record<string, unknown>): WishlistItem {
-  const by = r.created_by === 'letizia' ? 'letizia' : 'daniele'
+  const raw = String(r.created_by ?? '').trim()
+  const by = (raw || 'daniele') as WishlistItem['createdBy']
   const st = r.status
   const status: WishlistItemStatus =
     st === 'purchased' || st === 'dismissed' ? st : 'active'
@@ -228,6 +232,7 @@ export async function refreshWishData(options?: { silent?: boolean }) {
   const sb = getSupabaseClient()
   if (!sb || !appUserSessionValid.value) return
   const silent = options?.silent !== false
+  await refreshGardenContext()
   await fetchWishListsFromSupabase(silent)
   await ensureSelectedWishListAfterFetch()
   await fetchWishItemsFromSupabase(silent)
@@ -262,9 +267,15 @@ export async function createWishList(name?: string): Promise<boolean> {
     error.value = 'La lista desideri richiede Supabase e login.'
     return false
   }
+  const gid = currentGarden.value?.id
+  if (!gid) {
+    error.value =
+      'Nessuno spazio assegnato. Chiedi a un amministratore di aggiungerti a un garden.'
+    return false
+  }
   const { data, error: qErr } = await sb
     .from('wishlist_lists')
-    .insert({ created_by: activeUser.value, title })
+    .insert({ created_by: activeUser.value, title, garden_id: gid })
     .select('id, created_at, created_by, title')
     .single()
   if (qErr) {
@@ -344,7 +355,7 @@ export function useWishlist() {
   async function saveItemFromPreview(
     href: string,
     preview: LinkPreviewPayload,
-    createdBy: 'daniele' | 'letizia',
+    createdBy: UserId,
   ): Promise<{ ok: boolean; message?: string }> {
     const sb = getSupabaseClient()
     if (!sb) {
