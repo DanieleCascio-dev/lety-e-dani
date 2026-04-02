@@ -1,5 +1,12 @@
 <script setup lang="ts">
-  import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+  import {
+    computed,
+    nextTick,
+    onMounted,
+    onUnmounted,
+    ref,
+    watch,
+  } from "vue";
   import { RouterLink, RouterView, useRoute, useRouter } from "vue-router";
   import { useAppStorage, signOutUser } from "@/composables/useAppStorage";
   import { useTheme } from "@/composables/useTheme";
@@ -76,6 +83,49 @@
 
   const profileMenuOpen = ref(false);
   const profileDropdownEl = ref<HTMLElement | null>(null);
+  const profileAvatarBtnRef = ref<HTMLButtonElement | null>(null);
+  const profileMenuPanelRef = ref<HTMLElement | null>(null);
+  const profileMenuStyle = ref<Record<string, string>>({});
+
+  function updateProfileMenuPosition() {
+    const btn = profileAvatarBtnRef.value;
+    if (!btn) return;
+    const r = btn.getBoundingClientRect();
+    if (r.width <= 0 && r.height <= 0) return;
+    const vw = document.documentElement.clientWidth;
+    const gap = 8;
+    profileMenuStyle.value = {
+      position: "fixed",
+      top: `${Math.round(r.bottom + gap)}px`,
+      right: `${Math.round(Math.max(8, vw - r.right))}px`,
+      left: "auto",
+      minWidth: `${Math.max(168, Math.round(r.width))}px`,
+      zIndex: "1060",
+    };
+  }
+
+  function bindProfileMenuPositionListeners() {
+    window.addEventListener("scroll", updateProfileMenuPosition, true);
+    window.addEventListener("resize", updateProfileMenuPosition);
+  }
+
+  function unbindProfileMenuPositionListeners() {
+    window.removeEventListener("scroll", updateProfileMenuPosition, true);
+    window.removeEventListener("resize", updateProfileMenuPosition);
+  }
+
+  watch(profileMenuOpen, async (open) => {
+    if (!open) {
+      unbindProfileMenuPositionListeners();
+      profileMenuStyle.value = {};
+      return;
+    }
+    await nextTick();
+    requestAnimationFrame(() => {
+      updateProfileMenuPosition();
+      bindProfileMenuPositionListeners();
+    });
+  });
 
   function toggleProfileMenu() {
     profileMenuOpen.value = !profileMenuOpen.value;
@@ -98,11 +148,14 @@
 
   function onDocumentPointerDown(ev: PointerEvent) {
     if (!profileMenuOpen.value) return;
-    const root = profileDropdownEl.value;
     const t = ev.target;
-    if (root && t instanceof Node && !root.contains(t)) {
-      closeProfileMenu();
-    }
+    if (!(t instanceof Node)) return;
+    const root = profileDropdownEl.value;
+    const panel = profileMenuPanelRef.value;
+    const inside = Boolean(
+      (root && root.contains(t)) || (panel && panel.contains(t)),
+    );
+    if (!inside) closeProfileMenu();
   }
 
   function onDocumentKeydown(ev: KeyboardEvent) {
@@ -115,6 +168,7 @@
   });
 
   onUnmounted(() => {
+    unbindProfileMenuPositionListeners();
     document.removeEventListener("pointerdown", onDocumentPointerDown, true);
     document.removeEventListener("keydown", onDocumentKeydown, true);
   });
@@ -212,10 +266,11 @@
           <div
             v-if="showAccountMenu"
             ref="profileDropdownEl"
-            class="dropdown profile-dropdown position-relative flex-shrink-0"
+            class="dropdown profile-dropdown flex-shrink-0"
           >
             <button
               id="profile-menu-auth"
+              ref="profileAvatarBtnRef"
               type="button"
               class="btn rounded-circle d-inline-flex align-items-center justify-content-center fw-semibold text-white border profile-avatar-btn profile-avatar-btn--ring"
               :class="
@@ -228,49 +283,16 @@
               :aria-label="`Profilo: ${profileName}. Apri menu utente`"
               @click.stop="toggleProfileMenu"
             ></button>
-            <ul
-              class="dropdown-menu dropdown-menu-end shadow-sm mt-2"
-              :class="{ show: profileMenuOpen }"
-              role="menu"
-              aria-labelledby="profile-menu-auth"
-              :aria-hidden="!profileMenuOpen"
-            >
-              <li role="none">
-                <div class="dropdown-item-text small text-secondary py-1">
-                  {{ profileName }}
-                </div>
-              </li>
-              <li role="none">
-                <RouterLink
-                  class="dropdown-item"
-                  role="menuitem"
-                  :to="{ name: 'profile' }"
-                  @click="closeProfileMenu"
-                >
-                  Profilo
-                </RouterLink>
-              </li>
-              <li><hr class="dropdown-divider" /></li>
-              <li role="none">
-                <button
-                  type="button"
-                  class="dropdown-item"
-                  role="menuitem"
-                  @click="logout"
-                >
-                  Esci
-                </button>
-              </li>
-            </ul>
           </div>
 
           <div
             v-else-if="!useSupabaseAuth()"
             ref="profileDropdownEl"
-            class="dropdown profile-dropdown position-relative flex-shrink-0"
+            class="dropdown profile-dropdown flex-shrink-0"
           >
             <button
               id="profile-menu-local"
+              ref="profileAvatarBtnRef"
               type="button"
               class="btn rounded-circle d-inline-flex align-items-center justify-content-center fw-semibold text-white border profile-avatar-btn profile-avatar-btn--ring"
               :class="
@@ -283,52 +305,90 @@
               :aria-label="`Profilo: ${profileName}. Apri menu utente`"
               @click.stop="toggleProfileMenu"
             ></button>
-            <ul
-              class="dropdown-menu dropdown-menu-end shadow-sm mt-2"
-              :class="{ show: profileMenuOpen }"
-              role="menu"
-              aria-labelledby="profile-menu-local"
-              :aria-hidden="!profileMenuOpen"
-            >
-              <li role="none">
-                <button
-                  type="button"
-                  class="dropdown-item d-flex align-items-center gap-2"
-                  :class="{ active: activeUser === 'daniele' }"
-                  :aria-current="activeUser === 'daniele' ? 'true' : undefined"
-                  role="menuitemradio"
-                  :aria-checked="activeUser === 'daniele'"
-                  @click="pickProfile('daniele')"
-                >
-                  <span
-                    class="profile-dot profile-dot--daniele"
-                    aria-hidden="true"
-                  />
-                  Daniele
-                </button>
-              </li>
-              <li role="none">
-                <button
-                  type="button"
-                  class="dropdown-item d-flex align-items-center gap-2"
-                  :class="{ active: activeUser === 'letizia' }"
-                  :aria-current="activeUser === 'letizia' ? 'true' : undefined"
-                  role="menuitemradio"
-                  :aria-checked="activeUser === 'letizia'"
-                  @click="pickProfile('letizia')"
-                >
-                  <span
-                    class="profile-dot profile-dot--letizia"
-                    aria-hidden="true"
-                  />
-                  Letizia
-                </button>
-              </li>
-            </ul>
           </div>
         </div>
       </div>
     </nav>
+
+    <Teleport to="body">
+      <ul
+        v-if="showAccountMenu && profileMenuOpen"
+        ref="profileMenuPanelRef"
+        class="dropdown-menu dropdown-menu-end shadow-sm show profile-menu-floating"
+        :style="profileMenuStyle"
+        role="menu"
+        aria-labelledby="profile-menu-auth"
+        aria-hidden="false"
+      >
+        <li role="none">
+          <div class="dropdown-item-text small text-secondary py-1">
+            {{ profileName }}
+          </div>
+        </li>
+        <li role="none">
+          <RouterLink
+            class="dropdown-item"
+            role="menuitem"
+            :to="{ name: 'profile' }"
+            @click="closeProfileMenu"
+          >
+            Profilo
+          </RouterLink>
+        </li>
+        <li><hr class="dropdown-divider" /></li>
+        <li role="none">
+          <button
+            type="button"
+            class="dropdown-item"
+            role="menuitem"
+            @click="logout"
+          >
+            Esci
+          </button>
+        </li>
+      </ul>
+    </Teleport>
+
+    <Teleport to="body">
+      <ul
+        v-if="!useSupabaseAuth() && profileMenuOpen"
+        ref="profileMenuPanelRef"
+        class="dropdown-menu dropdown-menu-end shadow-sm show profile-menu-floating"
+        :style="profileMenuStyle"
+        role="menu"
+        aria-labelledby="profile-menu-local"
+        aria-hidden="false"
+      >
+        <li role="none">
+          <button
+            type="button"
+            class="dropdown-item d-flex align-items-center gap-2"
+            :class="{ active: activeUser === 'daniele' }"
+            :aria-current="activeUser === 'daniele' ? 'true' : undefined"
+            role="menuitemradio"
+            :aria-checked="activeUser === 'daniele'"
+            @click="pickProfile('daniele')"
+          >
+            <span class="profile-dot profile-dot--daniele" aria-hidden="true"></span>
+            Daniele
+          </button>
+        </li>
+        <li role="none">
+          <button
+            type="button"
+            class="dropdown-item d-flex align-items-center gap-2"
+            :class="{ active: activeUser === 'letizia' }"
+            :aria-current="activeUser === 'letizia' ? 'true' : undefined"
+            role="menuitemradio"
+            :aria-checked="activeUser === 'letizia'"
+            @click="pickProfile('letizia')"
+          >
+            <span class="profile-dot profile-dot--letizia" aria-hidden="true"></span>
+            Letizia
+          </button>
+        </li>
+      </ul>
+    </Teleport>
 
     <RouterView />
 
@@ -431,8 +491,15 @@
     background: #c9a227;
   }
 
-  .profile-dropdown .dropdown-menu {
-    z-index: 1050;
+  /* Menu profilo: Teleport su body + fixed (evita taglio su mobile per overflow navbar / html) */
+  .profile-menu-floating.dropdown-menu {
+    position: fixed !important;
+    margin-top: 0 !important;
+    transform: none !important;
+    max-height: min(70dvh, 22rem);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: calc(0.35rem + env(safe-area-inset-bottom, 0px));
   }
 
   .app-subnav-item {
