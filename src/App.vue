@@ -196,8 +196,7 @@
         >
           <div
             v-if="showAppSubNav"
-            class="app-subnav app-nav-scroll flex-grow-1 min-w-0"
-            :class="route.name === 'wishlist' ? 'py-0 app-subnav--compact' : 'py-1'"
+            class="app-subnav app-nav-scroll flex-grow-1 min-w-0 py-1"
           >
             <ul
               class="list-unstyled d-flex flex-row flex-nowrap gap-1 mb-0 align-items-center"
@@ -560,12 +559,4 @@
     background-color: rgba(var(--bs-primary-rgb), 0.14);
   }
 
-  .app-subnav--compact .app-subnav-item {
-    min-height: 2.65rem;
-    padding: 0.22rem 0.4rem;
-  }
-
-  .app-subnav--compact .app-subnav-icon {
-    transform: scale(0.92);
-  }
 </style>
