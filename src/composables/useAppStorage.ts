@@ -65,6 +65,7 @@ const DEFAULT_PROFILES = {
     iconShape: 'circle',
     navbarBg: null,
     pageBg: null,
+    avatarUrl: null,
   },
   letizia: {
     id: 'letizia',
@@ -74,6 +75,7 @@ const DEFAULT_PROFILES = {
     iconShape: 'circle',
     navbarBg: null,
     pageBg: null,
+    avatarUrl: null,
   },
 } as const satisfies Record<'daniele' | 'letizia', UserProfile>
 
@@ -98,6 +100,13 @@ function normalizeHexColor(raw: string | null | undefined): string | null {
   return null
 }
 
+function normalizeAvatarUrl(raw: string | null | undefined): string | null {
+  const s = raw != null ? String(raw).trim() : ''
+  if (!s) return null
+  if (/^https?:\/\//i.test(s)) return s
+  return null
+}
+
 function loadProfiles(): Record<string, UserProfile> {
   const raw = sessionStorage.getItem(PROFILES_KEY)
   if (!raw) {
@@ -119,6 +128,7 @@ function loadProfiles(): Record<string, UserProfile> {
         iconShape: parseIconShape(parsed.daniele?.iconShape),
         navbarBg: normalizeHexColor(parsed.daniele?.navbarBg as string) ?? baseD.navbarBg,
         pageBg: normalizeHexColor(parsed.daniele?.pageBg as string) ?? baseD.pageBg,
+        avatarUrl: normalizeAvatarUrl(parsed.daniele?.avatarUrl as string) ?? baseD.avatarUrl,
       },
       letizia: {
         ...baseL,
@@ -130,6 +140,7 @@ function loadProfiles(): Record<string, UserProfile> {
         iconShape: parseIconShape(parsed.letizia?.iconShape),
         navbarBg: normalizeHexColor(parsed.letizia?.navbarBg as string) ?? baseL.navbarBg,
         pageBg: normalizeHexColor(parsed.letizia?.pageBg as string) ?? baseL.pageBg,
+        avatarUrl: normalizeAvatarUrl(parsed.letizia?.avatarUrl as string) ?? baseL.avatarUrl,
       },
     }
   } catch {
@@ -438,11 +449,13 @@ async function startGroceriesSync() {
 
 type AppUserRowDb = {
   app_role: string
+  display_name?: string | null
   power_admin?: boolean | null
   icon_color?: string | null
   icon_shape?: string | null
   navbar_bg?: string | null
   page_bg?: string | null
+  avatar_url?: string | null
 }
 
 export const lastAppUserFetchError = ref<string | null>(null)
@@ -461,6 +474,7 @@ function defaultProfileForRole(role: string): UserProfile {
     iconShape: 'circle',
     navbarBg: null,
     pageBg: null,
+    avatarUrl: null,
   }
 }
 
@@ -468,12 +482,17 @@ function applyAppUserRowToProfiles(row: AppUserRowDb) {
   const role = String(row.app_role ?? '').trim()
   if (!role) return
   const prev = userProfiles.value[role] ?? defaultProfileForRole(role)
+  const fromDb = String(row.display_name ?? '').trim()
+  const displayName =
+    fromDb ||
+    prev.displayName ||
+    (role.length ? role.charAt(0).toUpperCase() + role.slice(1).replace(/_/g, ' ') : 'Utente')
   userProfiles.value = {
     ...userProfiles.value,
     [role]: {
       ...prev,
       id: role as UserId,
-      displayName: prev.displayName,
+      displayName,
       iconColor:
         row.icon_color !== undefined ? normalizeHexColor(row.icon_color) : prev.iconColor,
       iconShape:
@@ -481,6 +500,10 @@ function applyAppUserRowToProfiles(row: AppUserRowDb) {
       navbarBg:
         row.navbar_bg !== undefined ? normalizeHexColor(row.navbar_bg) : prev.navbarBg,
       pageBg: row.page_bg !== undefined ? normalizeHexColor(row.page_bg) : prev.pageBg,
+      avatarUrl:
+        row.avatar_url !== undefined
+          ? normalizeAvatarUrl(row.avatar_url)
+          : prev.avatarUrl,
       textIcon: 'grocery-text-icon',
     },
   }
@@ -492,7 +515,9 @@ async function fetchAppUserRow(userId: string): Promise<AppUserRowDb | null> {
   if (!sb) return null
   const { data, error } = await sb
     .from('app_user')
-    .select('app_role, power_admin, icon_color, icon_shape, navbar_bg, page_bg')
+    .select(
+      'app_role, display_name, power_admin, icon_color, icon_shape, navbar_bg, page_bg, avatar_url',
+    )
     .eq('user_id', userId)
     .maybeSingle()
   if (error) {
@@ -507,13 +532,44 @@ async function fetchAppUserRow(userId: string): Promise<AppUserRowDb | null> {
     }
     return {
       app_role: (legacy as { app_role: string }).app_role,
+      display_name: null,
       power_admin: false,
       icon_color: null,
       icon_shape: 'circle',
+      avatar_url: null,
     }
   }
   if (!data) return null
   return data as AppUserRowDb
+}
+
+/** Carica display_name (e slug) dei membri del garden corrente per etichette “chi ha aggiunto”. */
+async function hydrateGardenPeerProfilesFromGarden() {
+  const sb = getSupabaseClient()
+  const uid = authSession.value?.user?.id
+  const g = currentGarden.value
+  if (!sb || !uid || !g?.id) return
+  const { data: members, error: mErr } = await sb
+    .from('garden_member')
+    .select('user_id')
+    .eq('garden_id', g.id)
+  if (mErr || !members?.length) return
+  const userIds = [...new Set(members.map((m: { user_id: string }) => m.user_id))]
+  const { data: rows, error } = await sb
+    .from('app_user')
+    .select('app_role, display_name, avatar_url')
+    .in('user_id', userIds)
+  if (error || !rows?.length) return
+  for (const raw of rows) {
+    const row = raw as { app_role: string; display_name: string | null; avatar_url: string | null }
+    const role = String(row.app_role ?? '').trim()
+    if (!role) continue
+    applyAppUserRowToProfiles({
+      app_role: role,
+      display_name: row.display_name,
+      avatar_url: row.avatar_url,
+    })
+  }
 }
 
 async function loadCurrentGardenFromSupabase() {
@@ -540,6 +596,7 @@ async function loadCurrentGardenFromSupabase() {
   const g = Array.isArray(row.garden) ? row.garden[0] : row.garden
   if (g?.id && typeof g.name === 'string') {
     currentGarden.value = { id: g.id, name: g.name }
+    await hydrateGardenPeerProfilesFromGarden()
   } else {
     currentGarden.value = null
   }
@@ -555,6 +612,96 @@ export async function refreshAppUserProfileFromDb(): Promise<boolean> {
   if (!row || !String(row.app_role ?? '').trim()) return false
   applyAppUserRowToProfiles(row)
   return true
+}
+
+/** Nome mostrato in app (`app_user.display_name`); in modalità locale aggiorna solo sessionStorage. */
+export async function saveAppUserDisplayName(
+  name: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const trimmed = name.trim().slice(0, 80)
+  if (!trimmed) return { ok: false, error: 'Inserisci un nome.' }
+  const sb = getSupabaseClient()
+  const uid = authSession.value?.user?.id
+  if (sb && uid && appUserSessionValid.value) {
+    const { error } = await sb
+      .from('app_user')
+      .update({ display_name: trimmed })
+      .eq('user_id', uid)
+    if (error) return { ok: false, error: error.message }
+    applyAppUserRowToProfiles({ app_role: activeUser.value, display_name: trimmed })
+    return { ok: true }
+  }
+  if (sb && uid) {
+    return { ok: false, error: 'Sessione non valida.' }
+  }
+  const id = activeUser.value
+  const prev = userProfiles.value[id] ?? defaultProfileForRole(id)
+  userProfiles.value = { ...userProfiles.value, [id]: { ...prev, displayName: trimmed } }
+  return { ok: true }
+}
+
+const AVATAR_BUCKET = 'avatars'
+const AVATAR_MAX_BYTES = 2 * 1024 * 1024
+
+/** Carica foto profilo su Supabase Storage e salva l’URL in `app_user.avatar_url`. */
+export async function uploadUserAvatar(file: File): Promise<{ ok: boolean; error?: string }> {
+  if (!file.type.startsWith('image/')) {
+    return { ok: false, error: 'Scegli un file immagine (JPEG, PNG, WebP o GIF).' }
+  }
+  if (file.size > AVATAR_MAX_BYTES) {
+    return { ok: false, error: 'Immagine troppo grande (massimo 2 MB).' }
+  }
+  const sb = getSupabaseClient()
+  const uid = authSession.value?.user?.id
+  if (!sb || !uid || !appUserSessionValid.value) {
+    return { ok: false, error: 'Non autenticato.' }
+  }
+  const ext =
+    file.type === 'image/png'
+      ? 'png'
+      : file.type === 'image/webp'
+        ? 'webp'
+        : file.type === 'image/gif'
+          ? 'gif'
+          : 'jpg'
+  const path = `${uid}/avatar.${ext}`
+  const { error: upErr } = await sb.storage.from(AVATAR_BUCKET).upload(path, file, {
+    upsert: true,
+    contentType: file.type,
+    cacheControl: '3600',
+  })
+  if (upErr) return { ok: false, error: upErr.message }
+
+  const { data: pub } = sb.storage.from(AVATAR_BUCKET).getPublicUrl(path)
+  const publicUrl = pub.publicUrl
+  const { error: dbErr } = await sb
+    .from('app_user')
+    .update({ avatar_url: publicUrl })
+    .eq('user_id', uid)
+  if (dbErr) return { ok: false, error: dbErr.message }
+
+  applyAppUserRowToProfiles({ app_role: activeUser.value, avatar_url: publicUrl })
+  return { ok: true }
+}
+
+/** Rimuove file in Storage e azzera `avatar_url`. */
+export async function removeUserAvatar(): Promise<{ ok: boolean; error?: string }> {
+  const sb = getSupabaseClient()
+  const uid = authSession.value?.user?.id
+  if (!sb || !uid || !appUserSessionValid.value) {
+    return { ok: false, error: 'Non autenticato.' }
+  }
+  const { data: files } = await sb.storage.from(AVATAR_BUCKET).list(uid)
+  const paths = (files ?? []).map((f) => `${uid}/${f.name}`)
+  if (paths.length) {
+    const { error: rmErr } = await sb.storage.from(AVATAR_BUCKET).remove(paths)
+    if (rmErr) return { ok: false, error: rmErr.message }
+  }
+  const { error } = await sb.from('app_user').update({ avatar_url: null }).eq('user_id', uid)
+  if (error) return { ok: false, error: error.message }
+
+  applyAppUserRowToProfiles({ app_role: activeUser.value, avatar_url: null })
+  return { ok: true }
 }
 
 /**

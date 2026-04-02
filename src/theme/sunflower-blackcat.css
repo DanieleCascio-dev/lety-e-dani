@@ -26,7 +26,7 @@
  * Danger (terracotta soft):                      #c99488
  * Info (blu polvere):                            #8fa8b0
  *
- * Pattern shell: /sunflower_pattern.png (tile), blend soft sul marrone shell.
+ * Pattern shell: /sunflower_cat_pattern.png (tile), blend soft sul marrone shell.
  */
 
 html[data-theme='sunflower-blackcat'] {
@@ -66,7 +66,7 @@ html[data-theme='sunflower-blackcat'] {
   --theme-app-shell-bg: #2d2621;
 
   /* Tile PNG in public/ — regola `background-size` se il repeat non coincide col seamless */
-  --theme-shell-pattern-url: url('/sunflower_pattern.png');
+  --theme-shell-pattern-url: url('/sunflower_cat_pattern.png');
   --theme-shell-pattern-size: auto;
 
   /* ─── Bootstrap mapping ─── */

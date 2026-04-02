@@ -19,6 +19,7 @@
     WishlistItem,
     WishlistItemStatus,
   } from "@/types/wishlist";
+  import type { UserId } from "@/types/app";
   import {
     cleanProductTitle,
     domainLabel,
@@ -190,7 +191,7 @@
   });
 
   function userLabel(id: string) {
-    return id === "daniele" ? "Daniele" : "Letizia";
+    return profileFor(id as UserId).displayName;
   }
 
   function parseHref(raw: string): string | null {

@@ -22,6 +22,11 @@ type Body = {
   userId?: unknown;
   appRole?: unknown;
   email?: unknown;
+  password?: unknown;
+  /** Nome mostrato in app (`app_user.display_name`). */
+  displayName?: unknown;
+  /** Se true (default), l’utente può accedere subito senza conferma email. */
+  emailConfirm?: unknown;
 };
 
 Deno.serve(async (req) => {
@@ -124,7 +129,7 @@ Deno.serve(async (req) => {
       case "listAppUsers": {
         const { data, error } = await adminDb
           .from("app_user")
-          .select("user_id, app_role, power_admin, created_at")
+          .select("user_id, app_role, display_name, power_admin, created_at")
           .order("created_at", { ascending: true });
         if (error) throw error;
         return jsonResponse({ ok: true, appUsers: data ?? [] });
@@ -190,16 +195,132 @@ Deno.serve(async (req) => {
           const local = email.includes("@") ? email.split("@")[0]! : "utente";
           appRole = local.replace(/[^a-z0-9_-]/gi, "_").slice(0, 64) || "utente";
         }
-        const { error } = await adminDb.from("app_user").upsert(
-          {
+        const displayNameIn =
+          typeof body.displayName === "string" && body.displayName.trim()
+            ? body.displayName.trim().slice(0, 80)
+            : "";
+        const { data: existing } = await adminDb
+          .from("app_user")
+          .select("user_id, display_name")
+          .eq("user_id", userId)
+          .maybeSingle();
+        const existingDn = String(
+          (existing as { display_name?: string } | null)?.display_name ?? "",
+        ).trim();
+        const derived =
+          appRole.length > 0
+            ? appRole.charAt(0).toUpperCase() +
+              appRole.slice(1).replace(/_/g, " ")
+            : "Utente";
+        const displayName =
+          displayNameIn || existingDn || derived;
+        if (existing && (existing as { user_id?: string }).user_id) {
+          const { error } = await adminDb
+            .from("app_user")
+            .update({ app_role: appRole, display_name: displayName })
+            .eq("user_id", userId);
+          if (error) throw error;
+        } else {
+          const { error } = await adminDb.from("app_user").insert({
             user_id: userId,
             app_role: appRole,
+            display_name: displayName,
+            power_admin: false,
+          });
+          if (error) throw error;
+        }
+        return jsonResponse({ ok: true, appRole, displayName });
+      }
+
+      case "createAuthUser": {
+        const emailRaw =
+          typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+        const password = typeof body.password === "string" ? body.password : "";
+        if (!emailRaw || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailRaw)) {
+          return jsonResponse({ error: "Email non valida" }, 400);
+        }
+        if (password.length < 8) {
+          return jsonResponse(
+            { error: "La password deve avere almeno 8 caratteri" },
+            400,
+          );
+        }
+        const emailConfirm = body.emailConfirm !== false;
+
+        const { data: created, error: createErr } =
+          await adminDb.auth.admin.createUser({
+            email: emailRaw,
+            password,
+            email_confirm: emailConfirm,
+          });
+
+        if (createErr || !created.user) {
+          return jsonResponse(
+            { error: createErr?.message ?? "Creazione utente fallita" },
+            400,
+          );
+        }
+
+        const newId = created.user.id;
+
+        let appRole =
+          typeof body.appRole === "string" && body.appRole.trim()
+            ? body.appRole.trim().slice(0, 64)
+            : "";
+        if (!appRole) {
+          const local = emailRaw.includes("@") ? emailRaw.split("@")[0]! : "utente";
+          appRole = local.replace(/[^a-z0-9_-]/gi, "_").slice(0, 64) || "utente";
+        }
+
+        const displayName =
+          typeof body.displayName === "string" && body.displayName.trim()
+            ? body.displayName.trim().slice(0, 80)
+            : "";
+        if (!displayName) {
+          return jsonResponse({ error: "Nome visualizzato obbligatorio" }, 400);
+        }
+
+        const { error: appUserErr } = await adminDb.from("app_user").upsert(
+          {
+            user_id: newId,
+            app_role: appRole,
+            display_name: displayName,
             power_admin: false,
           },
           { onConflict: "user_id" },
         );
-        if (error) throw error;
-        return jsonResponse({ ok: true, appRole });
+
+        if (appUserErr) {
+          const { error: delErr } = await adminDb.auth.admin.deleteUser(newId);
+          const hint = delErr
+            ? ` Profilo app fallito e rimozione auth incompleta: ${delErr.message}`
+            : "";
+          return jsonResponse(
+            {
+              error: `Profilo app non creato: ${appUserErr.message}.${hint}`,
+            },
+            500,
+          );
+        }
+
+        const gardenIdOpt =
+          typeof body.gardenId === "string" ? body.gardenId.trim() : "";
+        let warning: string | undefined;
+        if (gardenIdOpt) {
+          const { error: memErr } = await adminDb.from("garden_member").insert({
+            garden_id: gardenIdOpt,
+            user_id: newId,
+          });
+          if (memErr) {
+            warning = `Utente creato ma non aggiunto al garden: ${memErr.message}`;
+          }
+        }
+
+        return jsonResponse({
+          ok: true,
+          user: { id: newId, email: emailRaw, appRole, displayName },
+          ...(warning ? { warning } : {}),
+        });
       }
 
       default:

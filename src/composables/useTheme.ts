@@ -19,13 +19,13 @@ export const themeOptions: {
 }[] = [
   {
     id: 'bootstrap',
-    label: 'Bootstrap (predefinito)',
+    label: 'Bootstrap',
     description:
       'Aspetto chiaro originale dell’app: invariato rispetto al design attuale.',
   },
   {
     id: 'sunflower-blackcat',
-    label: 'Sunflower & Black Cat',
+    label: 'Sunflower & Black Cat (predefinito)',
     description:
       'Tema scuro caldo con accenti giallo girasole, ispirato al brand visivo.',
   },

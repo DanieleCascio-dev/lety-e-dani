@@ -8,6 +8,7 @@ type AuthUserRow = { id: string; email: string | null; created_at: string };
 type AppUserRow = {
   user_id: string;
   app_role: string;
+  display_name?: string | null;
   power_admin: boolean;
   created_at: string;
 };
@@ -26,6 +27,14 @@ const appUsers = ref<AppUserRow[]>([]);
 
 const newGardenName = ref("");
 const addUserId = ref("");
+
+const createUserDisplayName = ref("");
+const createUserEmail = ref("");
+const createUserPassword = ref("");
+const createUserAppRole = ref("");
+const createUserAddToGarden = ref(true);
+/** false = può accedere subito (email confermata da admin). true = deve confermare via email. */
+const createUserRequireEmailConfirm = ref(false);
 
 async function invokeGardenAdmin(
   body: Record<string, unknown>,
@@ -93,6 +102,20 @@ function appRoleForUserId(userId: string): string | null {
   return r?.app_role ?? null;
 }
 
+/** Etichetta in elenco: nome scelto, altrimenti slug, altrimenti email. */
+function displayLabelForUserId(userId: string): string {
+  const r = appUsers.value.find((x) => x.user_id === userId);
+  const dn = r?.display_name?.trim();
+  if (dn) return dn;
+  const role = r?.app_role?.trim();
+  if (role) {
+    return (
+      role.charAt(0).toUpperCase() + role.slice(1).replace(/_/g, " ")
+    );
+  }
+  return emailForUserId(userId);
+}
+
 async function refreshGardensAndCatalog() {
   const g = (await invokeGardenAdmin({ action: "listGardens" })) as {
     gardens?: GardenRow[];
@@ -152,6 +175,63 @@ watch(selectedGardenId, () => {
 onMounted(() => {
   void loadPage();
 });
+
+async function createNewAuthUser() {
+  const displayName = createUserDisplayName.value.trim().slice(0, 80);
+  if (!displayName) {
+    actionMsgIsError.value = true;
+    actionMsg.value = "Inserisci il nome visualizzato (come apparirà in app).";
+    return;
+  }
+  const email = createUserEmail.value.trim().toLowerCase();
+  const pw = createUserPassword.value;
+  if (!email || !email.includes("@")) {
+    actionMsgIsError.value = true;
+    actionMsg.value = "Inserisci un’email valida.";
+    return;
+  }
+  if (pw.length < 8) {
+    actionMsgIsError.value = true;
+    actionMsg.value = "La password deve avere almeno 8 caratteri.";
+    return;
+  }
+  actionMsg.value = null;
+  actionMsgIsError.value = false;
+  busy.value = true;
+  try {
+    const gid =
+      createUserAddToGarden.value && selectedGardenId.value
+        ? selectedGardenId.value
+        : undefined;
+    const res = (await invokeGardenAdmin({
+      action: "createAuthUser",
+      email,
+      password: pw,
+      displayName,
+      appRole: createUserAppRole.value.trim() || undefined,
+      gardenId: gid,
+      emailConfirm: !createUserRequireEmailConfirm.value,
+    })) as {
+      warning?: string;
+    };
+    createUserDisplayName.value = "";
+    createUserEmail.value = "";
+    createUserPassword.value = "";
+    createUserAppRole.value = "";
+    await refreshGardensAndCatalog();
+    await loadMembers();
+    const w = typeof res.warning === "string" ? res.warning : "";
+    const baseOk = createUserRequireEmailConfirm.value
+      ? "Utente creato: deve confermare l’email prima di accedere (se SMTP è configurato su Supabase)."
+      : "Utente creato: può accedere con email e password (comunicagliele in modo sicuro).";
+    actionMsg.value = w ? `${baseOk} Nota: ${w}` : baseOk;
+  } catch (e) {
+    actionMsgIsError.value = true;
+    actionMsg.value = e instanceof Error ? e.message : "Errore";
+  } finally {
+    busy.value = false;
+  }
+}
 
 async function createGarden() {
   actionMsg.value = null;
@@ -299,6 +379,99 @@ const selectedGardenName = computed(() => {
           </div>
         </section>
 
+        <section class="card shadow-sm border-0 mb-3">
+          <div class="card-body">
+            <h2 class="h6 mb-3">Nuovo utente</h2>
+            <p class="small text-secondary mb-3">
+              Crea un account Supabase (email + password) e la riga in
+              <code>app_user</code>. Il
+              <strong>nome visualizzato</strong> lo vede e può cambiarlo l’utente
+              dal profilo; lo <strong>slug</strong> (opzionale) serve solo per i
+              metadati nelle liste.
+            </p>
+            <label for="ga-new-user-dn" class="form-label small"
+              >Nome visualizzato <span class="text-danger">*</span></label
+            >
+            <input
+              id="ga-new-user-dn"
+              v-model="createUserDisplayName"
+              type="text"
+              class="form-control form-control-sm mb-2"
+              maxlength="80"
+              autocomplete="name"
+              placeholder="es. Marco"
+              :disabled="busy"
+            />
+            <label for="ga-new-user-email" class="form-label small">Email</label>
+            <input
+              id="ga-new-user-email"
+              v-model="createUserEmail"
+              type="email"
+              class="form-control form-control-sm mb-2"
+              autocomplete="off"
+              :disabled="busy"
+            />
+            <label for="ga-new-user-pw" class="form-label small"
+              >Password (min. 8 caratteri)</label
+            >
+            <input
+              id="ga-new-user-pw"
+              v-model="createUserPassword"
+              type="password"
+              class="form-control form-control-sm mb-2"
+              autocomplete="new-password"
+              :disabled="busy"
+            />
+            <label for="ga-new-user-role" class="form-label small"
+              >Slug interno (opzionale)</label
+            >
+            <input
+              id="ga-new-user-role"
+              v-model="createUserAppRole"
+              type="text"
+              class="form-control form-control-sm mb-2"
+              maxlength="64"
+              placeholder="Se vuoto: derivato dall’email (created_by nelle liste)"
+              :disabled="busy"
+            />
+            <div class="form-check mb-2">
+              <input
+                id="ga-new-user-garden"
+                v-model="createUserAddToGarden"
+                class="form-check-input"
+                type="checkbox"
+                :disabled="busy || !selectedGardenId"
+              />
+              <label class="form-check-label small" for="ga-new-user-garden">
+                Aggiungi al garden selezionato
+                <span v-if="!selectedGardenId" class="text-secondary">
+                  (scegli prima un garden)</span
+                >
+              </label>
+            </div>
+            <div class="form-check mb-3">
+              <input
+                id="ga-new-user-confirm-mail"
+                v-model="createUserRequireEmailConfirm"
+                class="form-check-input"
+                type="checkbox"
+                :disabled="busy"
+              />
+              <label class="form-check-label small" for="ga-new-user-confirm-mail">
+                Richiedi conferma email (l’utente non accede finché non conferma)
+              </label>
+            </div>
+            <button
+              type="button"
+              class="btn btn-primary btn-sm"
+              :disabled="busy"
+              @click="createNewAuthUser"
+            >
+              Crea utente
+            </button>
+          </div>
+        </section>
+
         <section v-if="selectedGardenId" class="card shadow-sm border-0 mb-3">
           <div class="card-body">
             <h2 class="h6 mb-2">Membri — {{ selectedGardenName }}</h2>
@@ -310,14 +483,13 @@ const selectedGardenName = computed(() => {
               >
                 <div class="min-w-0">
                   <div class="text-truncate small fw-medium">
-                    {{ emailForUserId(m.user_id) }}
+                    {{ displayLabelForUserId(m.user_id) }}
                   </div>
-                  <div class="text-secondary small">
+                  <div class="text-secondary small text-truncate">
+                    {{ emailForUserId(m.user_id) }}
                     <span v-if="appRoleForUserId(m.user_id)"
-                      >ruolo app:
-                      <code>{{ appRoleForUserId(m.user_id) }}</code></span
+                      >· <code>{{ appRoleForUserId(m.user_id) }}</code></span
                     >
-                    <span v-else>nessun profilo app (usa «Aggiungi» sotto)</span>
                   </div>
                 </div>
                 <button

@@ -4,9 +4,13 @@
   import { getSupabaseClient } from "@/lib/supabase";
   import { authSession } from "@/auth/authSession";
   import {
+    appUserSessionValid,
     refreshAppUserProfileFromDb,
+    removeUserAvatar,
+    saveAppUserDisplayName,
     saveAppUserIconPreferences,
     saveAppUserThemePreferences,
+    uploadUserAvatar,
     useAppStorage,
   } from "@/composables/useAppStorage";
   import { useTheme } from "@/composables/useTheme";
@@ -22,6 +26,10 @@
     updateGardenName,
   } = useAppStorage();
   const { activeTheme, setTheme, themeOptions } = useTheme();
+
+  const showAvatarSection = computed(
+    () => getSupabaseClient() !== null && appUserSessionValid.value,
+  );
 
   const currentEmail = computed(() => authSession.value?.user?.email ?? "");
 
@@ -134,6 +142,31 @@
     if (!emailNew.value || emailNew.value === currentEmail.value)
       emailNew.value = v;
   });
+
+  const displayNameDraft = ref("");
+  const displayNameMsg = ref<string | null>(null);
+  const displayNameSaving = ref(false);
+
+  watch(
+    () => profileFor(activeUser.value).displayName,
+    (dn) => {
+      displayNameDraft.value = dn;
+    },
+    { immediate: true },
+  );
+
+  async function saveDisplayName() {
+    displayNameMsg.value = null;
+    displayNameSaving.value = true;
+    try {
+      const r = await saveAppUserDisplayName(displayNameDraft.value);
+      displayNameMsg.value = r.ok
+        ? "Nome aggiornato."
+        : (r.error ?? "Errore nel salvataggio.");
+    } finally {
+      displayNameSaving.value = false;
+    }
+  }
 
   const previewClasses = computed(() => {
     const p = userProfiles.value[activeUser.value];
@@ -251,6 +284,44 @@
       themeLoading.value = false;
     }
   }
+
+  const avatarInputRef = ref<HTMLInputElement | null>(null);
+  const avatarMsg = ref<string | null>(null);
+  const avatarLoading = ref(false);
+
+  function triggerAvatarPick() {
+    avatarInputRef.value?.click();
+  }
+
+  async function onAvatarFileChange(ev: Event) {
+    const input = ev.target as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = "";
+    if (!file) return;
+    avatarMsg.value = null;
+    avatarLoading.value = true;
+    try {
+      const r = await uploadUserAvatar(file);
+      avatarMsg.value = r.ok
+        ? "Foto profilo aggiornata."
+        : (r.error ?? "Errore nel caricamento.");
+    } finally {
+      avatarLoading.value = false;
+    }
+  }
+
+  async function clearAvatar() {
+    avatarMsg.value = null;
+    avatarLoading.value = true;
+    try {
+      const r = await removeUserAvatar();
+      avatarMsg.value = r.ok
+        ? "Foto profilo rimossa."
+        : (r.error ?? "Errore.");
+    } finally {
+      avatarLoading.value = false;
+    }
+  }
 </script>
 
 <template>
@@ -260,9 +331,108 @@
       <p class="text-secondary small mb-4">
         Account
         <strong>{{ profileFor(activeUser).displayName }}</strong>
-        — email, password, aspetto, colori dell’interfaccia e icona negli elenchi
-        (lista spesa, ecc.).
+        — come ti presenti nell’app; email, password, aspetto e preferenze.
       </p>
+
+      <section class="card shadow-sm border-0 mb-3">
+        <div class="card-body">
+          <h2 class="h6 mb-2">Il tuo nome</h2>
+          <p class="small text-secondary mb-3">
+            È il nome che vedono gli altri membri dello spazio accanto alle voci
+            che aggiungi (liste, desideri, ecc.). Non è l’email.
+          </p>
+          <label for="profile-display-name" class="form-label small">Nome</label>
+          <input
+            id="profile-display-name"
+            v-model="displayNameDraft"
+            type="text"
+            class="form-control mb-2"
+            maxlength="80"
+            autocomplete="nickname"
+          />
+          <p
+            v-if="displayNameMsg"
+            class="small mb-2"
+            :class="
+              displayNameMsg.includes('aggiornato')
+                ? 'text-success'
+                : 'text-danger'
+            "
+          >
+            {{ displayNameMsg }}
+          </p>
+          <button
+            type="button"
+            class="btn btn-primary btn-sm"
+            :disabled="displayNameSaving"
+            @click="saveDisplayName"
+          >
+            {{ displayNameSaving ? "Salvataggio…" : "Salva nome" }}
+          </button>
+        </div>
+      </section>
+
+      <section v-if="showAvatarSection" class="card shadow-sm border-0 mb-3">
+        <div class="card-body">
+          <h2 class="h6 mb-2">Foto profilo</h2>
+          <p class="small text-secondary mb-3">
+            Compare nel menu in alto. Salvata su Supabase (bucket pubblico
+            dedicato), non sul server del sito statico.
+          </p>
+          <div
+            v-if="profileFor(activeUser).avatarUrl"
+            class="mb-3 d-flex justify-content-center"
+          >
+            <img
+              :src="profileFor(activeUser).avatarUrl!"
+              alt=""
+              class="profile-avatar-preview rounded-circle border object-fit-cover"
+              width="96"
+              height="96"
+            />
+          </div>
+          <input
+            ref="avatarInputRef"
+            type="file"
+            class="d-none"
+            accept="image/jpeg,image/png,image/webp,image/gif"
+            @change="onAvatarFileChange"
+          />
+          <div class="d-flex flex-wrap gap-2 align-items-center">
+            <button
+              type="button"
+              class="btn btn-primary btn-sm"
+              :disabled="avatarLoading"
+              @click="triggerAvatarPick"
+            >
+              {{ avatarLoading ? "Caricamento…" : "Carica foto" }}
+            </button>
+            <button
+              v-if="profileFor(activeUser).avatarUrl"
+              type="button"
+              class="btn btn-outline-secondary btn-sm"
+              :disabled="avatarLoading"
+              @click="clearAvatar"
+            >
+              Rimuovi foto
+            </button>
+          </div>
+          <p class="small text-secondary mb-0 mt-2">
+            JPEG, PNG, WebP o GIF, massimo 2 MB.
+          </p>
+          <p
+            v-if="avatarMsg"
+            class="small mb-0 mt-2"
+            :class="
+              avatarMsg.includes('aggiornata') || avatarMsg.includes('rimossa')
+                ? 'text-success'
+                : 'text-danger'
+            "
+          >
+            {{ avatarMsg }}
+          </p>
+        </div>
+      </section>
 
       <section v-if="currentGarden" class="card shadow-sm border-0 mb-3">
         <div class="card-body">

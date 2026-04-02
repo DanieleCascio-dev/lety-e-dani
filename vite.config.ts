@@ -30,7 +30,7 @@ export default defineConfig(({ mode }) => {
           'favicon.ico',
           'favicon_flowerCat.ico',
           'sunflower.jpg',
-          'sunflower_pattern.png',
+          'sunflower_cat_pattern.png',
           'android_192.png',
           'android_512.png',
         ],
@@ -74,7 +74,7 @@ export default defineConfig(({ mode }) => {
           ],
         },
         workbox: {
-          /** Pattern tema (es. sunflower_pattern.png) > 2 MiB: default Workbox fallisce il build */
+          /** Pattern tema (es. sunflower_cat_pattern.png) > 2 MiB: default Workbox fallisce il build */
           maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
           globPatterns: ['**/*.{js,css,html,ico,png,svg,jpg,jpeg,webp,woff2}'],
           navigateFallback: '/index.html',

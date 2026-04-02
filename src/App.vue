@@ -84,7 +84,18 @@
   const showAppSubNav = computed(() => route.name !== "login");
 
   const profileName = computed(() =>
-    activeUser.value === "daniele" ? "Daniele" : "Letizia",
+    profileFor(activeUser.value).displayName,
+  );
+
+  const profileAvatarVariant = computed(() => {
+    const u = activeUser.value;
+    if (u === "daniele") return "daniele";
+    if (u === "letizia") return "letizia";
+    return "member";
+  });
+
+  const profileAvatarUrl = computed(
+    () => profileFor(activeUser.value).avatarUrl,
   );
 
   const profileMenuOpen = ref(false);
@@ -277,17 +288,24 @@
               id="profile-menu-auth"
               ref="profileAvatarBtnRef"
               type="button"
-              class="btn rounded-circle d-inline-flex align-items-center justify-content-center fw-semibold text-white border profile-avatar-btn profile-avatar-btn--ring"
+              class="btn rounded-circle d-inline-flex align-items-center justify-content-center fw-semibold text-white border profile-avatar-btn profile-avatar-btn--ring position-relative overflow-hidden"
               :class="
-                activeUser === 'daniele'
-                  ? 'profile-avatar-btn--daniele'
-                  : 'profile-avatar-btn--letizia'
+                profileAvatarUrl
+                  ? 'profile-avatar-btn--custom'
+                  : `profile-avatar-btn--${profileAvatarVariant}`
               "
               aria-haspopup="true"
               :aria-expanded="profileMenuOpen"
               :aria-label="`Profilo: ${profileName}. Apri menu utente`"
               @click.stop="toggleProfileMenu"
-            ></button>
+            >
+              <img
+                v-if="profileAvatarUrl"
+                :src="profileAvatarUrl"
+                alt=""
+                class="profile-avatar-img"
+              />
+            </button>
           </div>
 
           <div
@@ -299,17 +317,24 @@
               id="profile-menu-local"
               ref="profileAvatarBtnRef"
               type="button"
-              class="btn rounded-circle d-inline-flex align-items-center justify-content-center fw-semibold text-white border profile-avatar-btn profile-avatar-btn--ring"
+              class="btn rounded-circle d-inline-flex align-items-center justify-content-center fw-semibold text-white border profile-avatar-btn profile-avatar-btn--ring position-relative overflow-hidden"
               :class="
-                activeUser === 'daniele'
-                  ? 'profile-avatar-btn--daniele'
-                  : 'profile-avatar-btn--letizia'
+                profileAvatarUrl
+                  ? 'profile-avatar-btn--custom'
+                  : `profile-avatar-btn--${profileAvatarVariant}`
               "
               aria-haspopup="true"
               :aria-expanded="profileMenuOpen"
               :aria-label="`Profilo: ${profileName}. Apri menu utente`"
               @click.stop="toggleProfileMenu"
-            ></button>
+            >
+              <img
+                v-if="profileAvatarUrl"
+                :src="profileAvatarUrl"
+                alt=""
+                class="profile-avatar-img"
+              />
+            </button>
           </div>
         </div>
 
@@ -496,6 +521,26 @@
     background-size: cover;
     background-position: 28% 22%;
     background-repeat: no-repeat;
+  }
+
+  .profile-avatar-btn--member {
+    background: linear-gradient(135deg, #4a6670 0%, #2c3e50 100%);
+    background-size: cover;
+    background-position: center;
+  }
+
+  .profile-avatar-btn--custom {
+    background-color: var(--bs-secondary-bg, #e9ecef);
+  }
+
+  .profile-avatar-img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 50%;
+    pointer-events: none;
   }
 
   .profile-dot {

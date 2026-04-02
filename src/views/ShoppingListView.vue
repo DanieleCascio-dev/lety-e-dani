@@ -33,6 +33,7 @@
     isGroceryCloud,
     textIconClassFor,
     textIconStyleFor,
+    profileFor,
     createGroceryList,
     createChatGroceryList,
     renameGroceryList,
@@ -416,11 +417,14 @@
     document.removeEventListener("keydown", onDocumentKeydown, true);
   });
 
-  const userLabel = (id: string) => (id === "daniele" ? "Daniele" : "Letizia");
+  const userLabel = (id: string) => profileFor(id as UserId).displayName;
 
   /** Iniziale per chip “chi ha aggiunto” (marker colore + lettera) */
   function userMarkerLetter(id: UserId): string {
-    return id === "daniele" ? "D" : "L";
+    const dn = profileFor(id).displayName.trim();
+    if (dn.length) return dn.charAt(0).toUpperCase();
+    const slug = String(id).trim();
+    return slug.length ? slug.charAt(0).toUpperCase() : "?";
   }
 
   const hasOpenItems = computed(() => currentList.value.some((i) => !i.done));
@@ -498,7 +502,7 @@
               id="list-picker-btn"
               type="button"
               class="btn btn-light border-0 rounded-3 text-start w-100 d-flex align-items-center justify-content-between gap-2 py-2 px-3 shopping-list-picker-btn shopping-picker-trigger shadow-sm"
-              :disabled="!groceryLists.length || groceryListsLoading"
+              :disabled="groceryListsLoading"
               aria-haspopup="true"
               :aria-expanded="listMenuOpen"
               @click.stop="toggleListMenu"
@@ -549,7 +553,6 @@
             </ul>
           </div>
           <div
-            v-if="groceryLists.length"
             ref="listActionsMenuRoot"
             class="dropdown flex-shrink-0 shopping-list-actions-dd"
           >
@@ -653,7 +656,8 @@
         v-if="!groceryLists.length && !groceryListsLoading"
         class="alert alert-light border mb-3 small py-2"
       >
-        Nessuna lista ancora. Tocca <strong>+</strong> per iniziare.
+        Nessuna lista ancora. Apri il menu <strong>⋮</strong> accanto al
+        selettore e scegli <strong>Nuova lista</strong>.
       </div>
 
       <Teleport to="body">

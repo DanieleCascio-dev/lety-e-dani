@@ -1,9 +1,23 @@
 <script setup lang="ts">
+  import { computed, onMounted } from "vue";
   import { RouterLink } from "vue-router";
+  import {
+    currentGarden,
+    refreshGardenContext,
+  } from "@/composables/useAppStorage";
   import NavCartIcon from "@/components/icons/NavCartIcon.vue";
   import NavHeartIcon from "@/components/icons/NavHeartIcon.vue";
   import NavRestaurantIcon from "@/components/icons/NavRestaurantIcon.vue";
   import NavTodoIcon from "@/components/icons/NavTodoIcon.vue";
+
+  const gardenTitle = computed(() => {
+    const n = currentGarden.value?.name?.trim();
+    return n || "Sunflower Garden";
+  });
+
+  onMounted(() => {
+    void refreshGardenContext();
+  });
 </script>
 
 <template>
@@ -17,7 +31,7 @@
           Benvenut* nel nostro giardino!
         </p>
         <h1 class="h5 fw-semibold mb-0 text-body home-title">
-          Sunflower Garden
+          {{ gardenTitle }}
         </h1>
       </div>
       <ul class="list-unstyled d-grid gap-2 mb-0">
