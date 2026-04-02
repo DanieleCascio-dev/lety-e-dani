@@ -1,0 +1,665 @@
+/*
+ * Tema "sunflower-blackcat" — versione pastello calda (mobile-first).
+ * Attivo solo con html[data-theme="sunflower-blackcat"].
+ *
+ * ═══ Palette (HEX) — riferimento rapido ═══
+ * Background body (marrone caldo, no nero):     #242019
+ * App shell (strato sopra il body):             #2d2621
+ * Card / liste principali:                      #383028
+ * Superficie input / dropdown:                  #433a32
+ * Hover / attivo / sollevato:                    #4d443b
+ * Bordo / divider:                               #564e46
+ * Bordo soft (highlight):                        rgba(244, 239, 232, 0.12)
+ *
+ * Testo primario (bianco caldo):                 #f4efe8
+ * Testo secondario (più scuro, più leggibile):  #c4b6a8
+ * Testo muted:                                   #a89b90
+ * Testo su bottone primary:                      #2a221c
+ *
+ * Primary accent (girasole pastello):           #d4b88c
+ * Primary hover:                                 #dec49a
+ * Primary active:                                #c4a67a
+ * Link:                                          #dfc9a8
+ *
+ * Success (sage soft):                           #8aa882
+ * Warning (ambra soft):                          #cfa872
+ * Danger (terracotta soft):                      #c99488
+ * Info (blu polvere):                            #8fa8b0
+ *
+ * Pattern shell: /sunflower_pattern.png (tile), blend soft sul marrone shell.
+ */
+
+html[data-theme='sunflower-blackcat'] {
+  color-scheme: dark;
+
+  /* ─── Token progetto ─── */
+  --theme-bg-primary: #242019;
+  --theme-bg-secondary: #2d2621;
+  --theme-surface-1: #383028;
+  --theme-surface-2: #433a32;
+  --theme-surface-3: #4d443b;
+  --theme-border: #564e46;
+  --theme-border-soft: rgba(244, 239, 232, 0.12);
+
+  --theme-text-primary: #f4efe8;
+  --theme-text-secondary: #c4b6a8;
+  --theme-text-muted: #a89b90;
+  --theme-text-on-primary: #2a221c;
+
+  --theme-color-primary: #d4b88c;
+  --theme-color-primary-hover: #dec49a;
+  --theme-color-primary-active: #c4a67a;
+  --theme-color-primary-soft: #e8dcc8;
+
+  --theme-accent: #9a7f5c;
+  --theme-accent-2: #7d6849;
+  --theme-success: #8aa882;
+  --theme-warning: #cfa872;
+  --theme-danger: #c99488;
+
+  --theme-focus-ring: rgba(212, 184, 140, 0.42);
+  --theme-shadow-soft: 0 6px 20px rgba(12, 8, 6, 0.22);
+  --theme-shadow-card: 0 8px 28px rgba(12, 8, 6, 0.28);
+  --theme-shadow-inset-warm: inset 0 1px 0 rgba(255, 250, 245, 0.04);
+
+  --theme-nav-bg: #2f2822;
+  --theme-app-shell-bg: #2d2621;
+
+  /* Tile PNG in public/ — regola `background-size` se il repeat non coincide col seamless */
+  --theme-shell-pattern-url: url('/sunflower_pattern.png');
+  --theme-shell-pattern-size: auto;
+
+  /* ─── Bootstrap mapping ─── */
+  --bs-body-bg: var(--theme-bg-primary);
+  --bs-body-bg-rgb: 36, 32, 25;
+  --bs-body-color: var(--theme-text-primary);
+  --bs-body-color-rgb: 244, 239, 232;
+
+  --bs-emphasis-color: #faf6f1;
+  --bs-emphasis-color-rgb: 250, 246, 241;
+
+  --bs-secondary-color: rgba(196, 182, 168, 0.98);
+  --bs-secondary-color-rgb: 196, 182, 168;
+  --bs-secondary-bg: var(--theme-bg-secondary);
+  --bs-secondary-bg-rgb: 45, 38, 33;
+
+  --bs-tertiary-color: rgba(168, 155, 144, 0.95);
+  --bs-tertiary-color-rgb: 168, 155, 144;
+  --bs-tertiary-bg: var(--theme-surface-1);
+  --bs-tertiary-bg-rgb: 56, 48, 40;
+
+  --bs-heading-color: var(--theme-text-primary);
+
+  --bs-primary: #d4b88c;
+  --bs-primary-rgb: 212, 184, 140;
+  --bs-primary-text-emphasis: #e8dcc8;
+  --bs-primary-bg-subtle: rgba(212, 184, 140, 0.14);
+  --bs-primary-border-subtle: rgba(212, 184, 140, 0.28);
+
+  --bs-secondary: #524840;
+  --bs-secondary-rgb: 82, 72, 64;
+  --bs-secondary-text-emphasis: var(--theme-text-secondary);
+  --bs-secondary-bg-subtle: var(--theme-surface-2);
+  --bs-secondary-border-subtle: #5c534c;
+
+  --bs-success: #8aa882;
+  --bs-success-rgb: 138, 168, 130;
+  --bs-success-text-emphasis: #c5d4bf;
+  --bs-success-bg-subtle: rgba(138, 168, 130, 0.16);
+  --bs-success-border-subtle: rgba(138, 168, 130, 0.32);
+
+  --bs-danger: #c99488;
+  --bs-danger-rgb: 201, 148, 136;
+  --bs-danger-text-emphasis: #e4c4bc;
+  --bs-danger-bg-subtle: rgba(201, 148, 136, 0.14);
+  --bs-danger-border-subtle: rgba(201, 148, 136, 0.3);
+
+  --bs-warning: #cfa872;
+  --bs-warning-rgb: 207, 168, 114;
+  --bs-warning-text-emphasis: #e8d4b8;
+  --bs-warning-bg-subtle: rgba(207, 168, 114, 0.14);
+  --bs-warning-border-subtle: rgba(207, 168, 114, 0.3);
+
+  --bs-info: #8fa8b0;
+  --bs-info-rgb: 143, 168, 176;
+  --bs-info-text-emphasis: #c5d6dc;
+  --bs-info-bg-subtle: rgba(143, 168, 176, 0.14);
+  --bs-info-border-subtle: rgba(143, 168, 176, 0.3);
+
+  --bs-light: #4d443b;
+  --bs-light-rgb: 77, 68, 59;
+  --bs-dark: #242019;
+  --bs-dark-rgb: 36, 32, 25;
+
+  --bs-link-color: #dfc9a8;
+  --bs-link-color-rgb: 223, 201, 168;
+  --bs-link-hover-color: #e8dcc8;
+  --bs-link-hover-color-rgb: 232, 220, 200;
+
+  --bs-border-color: var(--theme-border);
+  --bs-border-color-translucent: rgba(244, 239, 232, 0.09);
+
+  --bs-border-radius: 0.75rem;
+  --bs-border-radius-sm: 0.5rem;
+  --bs-border-radius-lg: 1rem;
+  --bs-border-radius-xl: 1.25rem;
+
+  --bs-box-shadow: var(--theme-shadow-soft);
+  --bs-box-shadow-sm: 0 2px 10px rgba(12, 8, 6, 0.18);
+  --bs-box-shadow-lg: var(--theme-shadow-card);
+  --bs-box-shadow-inset: inset 0 1px 2px rgba(0, 0, 0, 0.2);
+
+  --bs-focus-ring-width: 0.2rem;
+  --bs-focus-ring-opacity: 0.4;
+  --bs-focus-ring-color: var(--theme-focus-ring);
+
+  --bs-form-valid-color: #a3c49a;
+  --bs-form-valid-border-color: #7a9a72;
+  --bs-form-invalid-color: #d4a89e;
+  --bs-form-invalid-border-color: #b88278;
+
+  /* Navbar */
+  --bs-navbar-color: rgba(196, 182, 168, 0.92);
+  --bs-navbar-hover-color: var(--theme-text-primary);
+  --bs-navbar-active-color: var(--theme-color-primary);
+  --bs-navbar-disabled-color: rgba(168, 155, 144, 0.55);
+  --bs-navbar-brand-color: var(--theme-text-primary);
+  --bs-navbar-brand-hover-color: var(--theme-color-primary-hover);
+
+  /* Card: più chiare dello shell + bordo leggero */
+  --bs-card-bg: var(--theme-surface-1);
+  --bs-card-border-color: var(--theme-border-soft);
+  --bs-card-cap-bg: rgba(0, 0, 0, 0.12);
+  --bs-card-color: var(--theme-text-primary);
+
+  /* List group */
+  --bs-list-group-color: var(--theme-text-primary);
+  --bs-list-group-bg: var(--theme-surface-1);
+  --bs-list-group-border-color: var(--theme-border);
+  --bs-list-group-hover-bg: var(--theme-surface-2);
+  --bs-list-group-action-hover-color: var(--theme-text-primary);
+  --bs-list-group-action-active-bg: var(--theme-surface-3);
+  --bs-list-group-action-active-color: var(--theme-text-primary);
+  --bs-list-group-disabled-color: var(--theme-text-muted);
+  --bs-list-group-disabled-bg: var(--theme-surface-1);
+
+  /* Dropdown */
+  --bs-dropdown-bg: var(--theme-surface-2);
+  --bs-dropdown-border-color: var(--theme-border);
+  --bs-dropdown-divider-bg: var(--theme-border);
+  --bs-dropdown-link-color: var(--theme-text-primary);
+  --bs-dropdown-link-hover-color: var(--theme-text-primary);
+  --bs-dropdown-link-hover-bg: var(--theme-surface-3);
+  --bs-dropdown-link-active-color: var(--theme-text-on-primary);
+  --bs-dropdown-link-active-bg: var(--bs-primary);
+  --bs-dropdown-link-disabled-color: var(--theme-text-muted);
+
+  /* Modal */
+  --bs-modal-bg: var(--theme-surface-1);
+  --bs-modal-border-color: var(--theme-border);
+  --bs-modal-header-border-color: var(--theme-border);
+  --bs-modal-footer-border-color: var(--theme-border);
+
+  /* Pagination */
+  --bs-pagination-color: var(--theme-color-primary);
+  --bs-pagination-bg: var(--theme-surface-2);
+  --bs-pagination-border-color: var(--theme-border);
+  --bs-pagination-hover-color: var(--theme-color-primary-hover);
+  --bs-pagination-hover-bg: var(--theme-surface-3);
+  --bs-pagination-hover-border-color: var(--theme-border);
+  --bs-pagination-focus-color: var(--theme-color-primary);
+  --bs-pagination-focus-bg: var(--theme-surface-3);
+  --bs-pagination-focus-box-shadow: 0 0 0 0.2rem var(--theme-focus-ring);
+  --bs-pagination-active-color: var(--theme-text-on-primary);
+  --bs-pagination-active-bg: var(--bs-primary);
+  --bs-pagination-active-border-color: var(--bs-primary);
+  --bs-pagination-disabled-color: var(--theme-text-muted);
+  --bs-pagination-disabled-bg: var(--theme-surface-1);
+  --bs-pagination-disabled-border-color: var(--theme-border);
+
+  /* Nav / tabs */
+  --bs-nav-tabs-link-active-bg: var(--theme-surface-1);
+  --bs-nav-tabs-link-active-color: var(--theme-text-primary);
+  --bs-nav-tabs-border-color: var(--theme-border);
+  --bs-nav-link-color: var(--theme-text-secondary);
+  --bs-nav-link-hover-color: var(--theme-color-primary-hover);
+
+  --bs-toast-bg: var(--theme-surface-2);
+  --bs-toast-border-color: var(--theme-border);
+  --bs-toast-header-bg: var(--theme-surface-3);
+  --bs-offcanvas-bg: var(--theme-surface-1);
+  --bs-offcanvas-border-color: var(--theme-border);
+}
+
+html[data-theme='sunflower-blackcat'] body {
+  background-color: var(--bs-body-bg);
+  color: var(--bs-body-color);
+}
+
+html[data-theme='sunflower-blackcat'] #app {
+  color: var(--bs-body-color);
+}
+
+html[data-theme='sunflower-blackcat'] ::selection {
+  background: rgba(212, 184, 140, 0.32);
+  color: var(--theme-text-on-primary);
+}
+
+/*
+ * Shell: base marrone + pattern acquerello (PNG chiaro).
+ * soft-light fonde il tile sul fondo scuro senza strappare il contrasto UI.
+ */
+html[data-theme='sunflower-blackcat'] .app-shell {
+  background-color: var(--theme-app-shell-bg) !important;
+  background-image: var(--theme-shell-pattern-url) !important;
+  background-repeat: repeat !important;
+  background-size: var(--theme-shell-pattern-size) !important;
+  background-position: 0 0;
+  background-blend-mode: soft-light;
+}
+
+html[data-theme='sunflower-blackcat'] .app-top-nav {
+  background-color: var(--theme-nav-bg) !important;
+  border-bottom: 1px solid var(--theme-border-soft) !important;
+  box-shadow: var(--theme-shadow-inset-warm);
+}
+
+/* Card: separazione dallo shell (ombra + bordo) */
+html[data-theme='sunflower-blackcat'] .card {
+  background-color: var(--theme-surface-1);
+  border: 1px solid var(--theme-border-soft);
+  box-shadow: var(--theme-shadow-sm);
+}
+
+html[data-theme='sunflower-blackcat'] .card.border-0 {
+  border: 1px solid var(--theme-border-soft) !important;
+}
+
+/* Primary CTA */
+html[data-theme='sunflower-blackcat'] .btn-primary {
+  --bs-btn-color: var(--theme-text-on-primary);
+  --bs-btn-bg: var(--theme-color-primary);
+  --bs-btn-border-color: rgba(42, 34, 28, 0.15);
+  --bs-btn-hover-color: var(--theme-text-on-primary);
+  --bs-btn-hover-bg: var(--theme-color-primary-hover);
+  --bs-btn-hover-border-color: rgba(42, 34, 28, 0.12);
+  --bs-btn-active-color: var(--theme-text-on-primary);
+  --bs-btn-active-bg: var(--theme-color-primary-active);
+  --bs-btn-active-border-color: rgba(42, 34, 28, 0.2);
+  --bs-btn-disabled-color: rgba(42, 34, 28, 0.4);
+  --bs-btn-disabled-bg: rgba(212, 184, 140, 0.32);
+  --bs-btn-disabled-border-color: transparent;
+}
+
+html[data-theme='sunflower-blackcat'] .btn-secondary {
+  --bs-btn-color: var(--theme-text-primary);
+  --bs-btn-bg: var(--theme-surface-2);
+  --bs-btn-border-color: var(--theme-border);
+  --bs-btn-hover-color: var(--theme-text-primary);
+  --bs-btn-hover-bg: var(--theme-surface-3);
+  --bs-btn-hover-border-color: #5c534c;
+  --bs-btn-active-bg: #4e4540;
+  --bs-btn-active-border-color: #6a6058;
+}
+
+html[data-theme='sunflower-blackcat'] .btn-outline-primary {
+  --bs-btn-color: var(--theme-color-primary-soft);
+  --bs-btn-border-color: rgba(212, 184, 140, 0.45);
+  --bs-btn-hover-color: var(--theme-text-on-primary);
+  --bs-btn-hover-bg: var(--theme-color-primary);
+  --bs-btn-hover-border-color: var(--theme-color-primary);
+}
+
+html[data-theme='sunflower-blackcat'] .btn-outline-secondary {
+  --bs-btn-color: var(--theme-text-secondary);
+  --bs-btn-border-color: var(--theme-border);
+  --bs-btn-hover-color: var(--theme-text-primary);
+  --bs-btn-hover-bg: var(--theme-surface-3);
+  --bs-btn-hover-border-color: #5c534c;
+}
+
+html[data-theme='sunflower-blackcat'] .btn-outline-danger {
+  --bs-btn-color: #d4a89e;
+  --bs-btn-border-color: rgba(201, 148, 136, 0.45);
+  --bs-btn-hover-color: #2a221c;
+  --bs-btn-hover-bg: var(--theme-danger);
+  --bs-btn-hover-border-color: var(--theme-danger);
+}
+
+html[data-theme='sunflower-blackcat'] .btn-ghost,
+html[data-theme='sunflower-blackcat'] .btn-link {
+  --bs-btn-color: var(--theme-color-primary-soft);
+}
+
+html[data-theme='sunflower-blackcat'] .btn-danger {
+  --bs-btn-color: #2a221c;
+  --bs-btn-bg: var(--theme-danger);
+  --bs-btn-border-color: rgba(42, 34, 28, 0.12);
+  --bs-btn-hover-bg: #b87f72;
+  --bs-btn-hover-border-color: rgba(42, 34, 28, 0.1);
+}
+
+html[data-theme='sunflower-blackcat'] .btn-success {
+  --bs-btn-color: #2a221c;
+  --bs-btn-bg: var(--theme-success);
+  --bs-btn-border-color: rgba(42, 34, 28, 0.1);
+  --bs-btn-hover-bg: #9ab892;
+  --bs-btn-hover-border-color: rgba(42, 34, 28, 0.08);
+}
+
+html[data-theme='sunflower-blackcat'] .btn-close {
+  filter: invert(1) grayscale(100%) brightness(1.15);
+  opacity: 0.65;
+}
+
+html[data-theme='sunflower-blackcat'] .btn-close:hover {
+  opacity: 0.95;
+}
+
+/* Alert pastello */
+html[data-theme='sunflower-blackcat'] .alert-primary {
+  --bs-alert-color: #e8dcc8;
+  --bs-alert-bg: rgba(212, 184, 140, 0.12);
+  --bs-alert-border-color: rgba(212, 184, 140, 0.22);
+}
+
+html[data-theme='sunflower-blackcat'] .alert-success {
+  --bs-alert-color: #d0e0cb;
+  --bs-alert-bg: rgba(138, 168, 130, 0.14);
+  --bs-alert-border-color: rgba(138, 168, 130, 0.26);
+}
+
+html[data-theme='sunflower-blackcat'] .alert-danger {
+  --bs-alert-color: #e8d0ca;
+  --bs-alert-bg: rgba(201, 148, 136, 0.12);
+  --bs-alert-border-color: rgba(201, 148, 136, 0.24);
+}
+
+html[data-theme='sunflower-blackcat'] .alert-warning {
+  --bs-alert-color: #e8d8c4;
+  --bs-alert-bg: rgba(207, 168, 114, 0.12);
+  --bs-alert-border-color: rgba(207, 168, 114, 0.24);
+}
+
+html[data-theme='sunflower-blackcat'] .alert-info {
+  --bs-alert-color: #d2e0e6;
+  --bs-alert-bg: rgba(143, 168, 176, 0.12);
+  --bs-alert-border-color: rgba(143, 168, 176, 0.24);
+}
+
+/* Badge soft (tutte le varianti comuni) */
+html[data-theme='sunflower-blackcat'] .badge.text-bg-primary {
+  background-color: rgba(212, 184, 140, 0.85) !important;
+  color: var(--theme-text-on-primary) !important;
+  font-weight: 600;
+}
+
+html[data-theme='sunflower-blackcat'] .badge.text-bg-secondary {
+  background-color: var(--theme-surface-3) !important;
+  color: var(--theme-text-secondary) !important;
+}
+
+html[data-theme='sunflower-blackcat'] .badge.text-bg-success {
+  background-color: rgba(138, 168, 130, 0.55) !important;
+  color: #eef4ec !important;
+}
+
+html[data-theme='sunflower-blackcat'] .badge.text-bg-danger {
+  background-color: rgba(201, 148, 136, 0.5) !important;
+  color: #faf3f1 !important;
+}
+
+html[data-theme='sunflower-blackcat'] .badge.text-bg-warning {
+  background-color: rgba(207, 168, 114, 0.45) !important;
+  color: #2a221c !important;
+}
+
+html[data-theme='sunflower-blackcat'] .badge.text-bg-info {
+  background-color: rgba(143, 168, 176, 0.45) !important;
+  color: #f2f7f8 !important;
+}
+
+html[data-theme='sunflower-blackcat'] .badge.text-bg-light {
+  background-color: var(--theme-surface-3) !important;
+  color: var(--theme-text-primary) !important;
+}
+
+html[data-theme='sunflower-blackcat'] .badge.text-bg-dark {
+  background-color: var(--theme-surface-1) !important;
+  color: var(--theme-text-secondary) !important;
+}
+
+/* Modal backdrop: marrone caldo, non nero puro */
+html[data-theme='sunflower-blackcat'] .modal-backdrop {
+  --bs-backdrop-bg: #242019;
+  --bs-backdrop-opacity: 0.78;
+}
+
+/* Form */
+html[data-theme='sunflower-blackcat'] .form-control {
+  background-color: var(--theme-surface-2);
+  border-color: var(--theme-border);
+  color: var(--theme-text-primary);
+  box-shadow: var(--theme-shadow-inset-warm);
+}
+
+html[data-theme='sunflower-blackcat'] .form-control:focus {
+  background-color: var(--theme-surface-2);
+  border-color: rgba(212, 184, 140, 0.45);
+  color: var(--theme-text-primary);
+  box-shadow: var(--theme-shadow-inset-warm), 0 0 0 0.2rem var(--theme-focus-ring);
+}
+
+html[data-theme='sunflower-blackcat'] .form-control::placeholder {
+  color: var(--theme-text-muted);
+}
+
+html[data-theme='sunflower-blackcat'] .form-control:disabled,
+html[data-theme='sunflower-blackcat'] .form-select:disabled {
+  background-color: var(--theme-surface-1);
+  color: var(--theme-text-muted);
+  opacity: 0.88;
+}
+
+html[data-theme='sunflower-blackcat'] .form-select {
+  background-color: var(--theme-surface-2);
+  border-color: var(--theme-border);
+  color: var(--theme-text-primary);
+  box-shadow: var(--theme-shadow-inset-warm);
+  --bs-form-select-bg-img: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23f4efe8' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
+}
+
+html[data-theme='sunflower-blackcat'] .form-select:focus {
+  border-color: rgba(212, 184, 140, 0.45);
+  box-shadow: var(--theme-shadow-inset-warm), 0 0 0 0.2rem var(--theme-focus-ring);
+}
+
+html[data-theme='sunflower-blackcat'] .input-group-text {
+  background-color: var(--theme-surface-3);
+  border-color: var(--theme-border);
+  color: var(--theme-text-secondary);
+}
+
+html[data-theme='sunflower-blackcat'] .form-check-input {
+  background-color: var(--theme-surface-2);
+  border-color: #6d635a;
+}
+
+html[data-theme='sunflower-blackcat'] .form-check-input:checked {
+  background-color: var(--theme-color-primary);
+  border-color: rgba(42, 34, 28, 0.2);
+}
+
+html[data-theme='sunflower-blackcat'] .form-check-input:focus {
+  border-color: var(--theme-color-primary);
+  box-shadow: 0 0 0 0.2rem var(--theme-focus-ring);
+}
+
+html[data-theme='sunflower-blackcat'] .form-switch .form-check-input {
+  --bs-form-switch-bg: #5c534c;
+}
+
+html[data-theme='sunflower-blackcat'] .form-switch .form-check-input:checked {
+  --bs-form-switch-bg: var(--theme-color-primary);
+}
+
+html[data-theme='sunflower-blackcat'] .form-control-color {
+  border-color: var(--theme-border);
+}
+
+/* Tabelle */
+html[data-theme='sunflower-blackcat'] .table {
+  --bs-table-color: var(--theme-text-primary);
+  --bs-table-bg: var(--theme-surface-1);
+  --bs-table-border-color: var(--theme-border);
+  --bs-table-striped-bg: rgba(244, 239, 232, 0.035);
+  --bs-table-hover-bg: rgba(212, 184, 140, 0.09);
+  --bs-table-active-bg: rgba(212, 184, 140, 0.14);
+}
+
+/* Nav pills (Home / filtri / CTA secondari) */
+html[data-theme='sunflower-blackcat'] .nav-pills .nav-link {
+  color: var(--theme-text-secondary);
+}
+
+html[data-theme='sunflower-blackcat'] .nav-pills .nav-link:hover {
+  color: var(--theme-text-primary);
+  background-color: rgba(244, 239, 232, 0.06);
+}
+
+html[data-theme='sunflower-blackcat'] .nav-pills .nav-link.active,
+html[data-theme='sunflower-blackcat'] .nav-pills .show > .nav-link {
+  color: var(--theme-text-on-primary);
+  background-color: var(--theme-color-primary);
+}
+
+/* Sottonav app (icon link) — accento più morbido */
+html[data-theme='sunflower-blackcat'] .app-subnav-item.app-subnav-item--active,
+html[data-theme='sunflower-blackcat'] .app-subnav-item.router-link-active {
+  color: var(--theme-color-primary-soft);
+  background-color: rgba(212, 184, 140, 0.12);
+}
+
+html[data-theme='sunflower-blackcat'] .app-subnav-item.app-subnav-item--active:hover,
+html[data-theme='sunflower-blackcat'] .app-subnav-item.router-link-active:hover {
+  color: var(--theme-color-primary-hover);
+  background-color: rgba(212, 184, 140, 0.16);
+}
+
+html[data-theme='sunflower-blackcat'] .app-subnav-item:focus-visible {
+  box-shadow: 0 0 0 0.2rem var(--theme-focus-ring);
+}
+
+/* ─── Home: testo sul pattern + tile senza bianco ─── */
+html[data-theme='sunflower-blackcat'] .home-hero {
+  background: rgba(36, 32, 25, 0.72);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-radius: 0.75rem;
+  padding: 0.85rem 0.75rem;
+  border: 1px solid var(--theme-border-soft);
+  box-shadow: 0 4px 18px rgba(12, 8, 6, 0.22);
+}
+
+html[data-theme='sunflower-blackcat'] .home-hero .home-welcome {
+  color: var(--theme-text-primary) !important;
+  font-weight: 500;
+  opacity: 0.96;
+}
+
+html[data-theme='sunflower-blackcat'] .home-hero .home-title {
+  color: var(--theme-text-primary) !important;
+}
+
+html[data-theme='sunflower-blackcat'] a.home-tile {
+  background-color: var(--theme-surface-1) !important;
+  color: var(--theme-text-primary) !important;
+  border-color: var(--theme-border-soft) !important;
+  box-shadow: var(--bs-box-shadow-sm);
+}
+
+html[data-theme='sunflower-blackcat'] a.home-tile .fw-semibold {
+  color: var(--theme-text-primary);
+}
+
+html[data-theme='sunflower-blackcat'] a.home-tile .text-primary {
+  color: var(--theme-color-primary) !important;
+}
+
+html[data-theme='sunflower-blackcat'] a.home-tile .text-secondary,
+html[data-theme='sunflower-blackcat'] a.home-tile .small.text-secondary {
+  color: var(--theme-text-secondary) !important;
+}
+
+html[data-theme='sunflower-blackcat'] a.home-tile:hover {
+  border-color: rgba(212, 184, 140, 0.38) !important;
+  background-color: var(--theme-surface-2) !important;
+  box-shadow: var(--theme-shadow-soft);
+}
+
+/*
+ * Bootstrap: .text-secondary usa rgba(--bs-secondary-rgb) = colore “secondary” del tema.
+ * Nel sunflower --bs-secondary è un marrone scuro (bottoni/superfici) → testo illeggibile.
+ */
+html[data-theme='sunflower-blackcat'] .text-secondary {
+  color: var(--theme-text-secondary) !important;
+}
+
+/* btn-light (picker lista, ⋮, ecc.): niente bianco su tema scuro */
+html[data-theme='sunflower-blackcat'] .btn-light {
+  --bs-btn-color: var(--theme-text-primary);
+  --bs-btn-bg: var(--theme-surface-1);
+  --bs-btn-border-color: var(--theme-border-soft);
+  --bs-btn-hover-color: var(--theme-text-primary);
+  --bs-btn-hover-bg: var(--theme-surface-2);
+  --bs-btn-hover-border-color: var(--theme-border);
+  --bs-btn-active-color: var(--theme-text-primary);
+  --bs-btn-active-bg: var(--theme-surface-3);
+  --bs-btn-active-border-color: var(--theme-border);
+  --bs-btn-disabled-color: var(--theme-text-muted);
+  --bs-btn-disabled-bg: var(--theme-surface-1);
+  --bs-btn-disabled-border-color: transparent;
+}
+
+/* Lista spesa / Todo: contenitore più definito sul pattern */
+html[data-theme='sunflower-blackcat'] ul.shopping-items-list {
+  background-color: var(--theme-surface-1) !important;
+  border-color: var(--theme-border-soft) !important;
+  box-shadow: var(--theme-shadow-soft);
+}
+
+/* Righe “comprato / fatto”: sfondo distinto dalla card (prima merge con surface-1) */
+html[data-theme='sunflower-blackcat'] .shopping-items-list .shopping-list-row--done.bg-body-tertiary,
+html[data-theme='sunflower-blackcat'] .shopping-items-list .shopping-swipe-front--done.bg-body-tertiary {
+  background-color: var(--theme-surface-2) !important;
+}
+
+/* Articoli barrati: restano leggibili (text-secondary corretto + strikethrough visibile) */
+html[data-theme='sunflower-blackcat'] .shopping-items-list .item-text.text-decoration-line-through {
+  text-decoration-color: rgba(196, 182, 168, 0.55);
+}
+
+html[data-theme='sunflower-blackcat'] .shopping-items-list .shopping-done-tick.text-success {
+  color: var(--theme-success) !important;
+  opacity: 1;
+}
+
+/* Wishlist: stesso problema tertiary su card swipe */
+html[data-theme='sunflower-blackcat'] .wish-swipe-track .shopping-swipe-front.bg-body-tertiary {
+  background-color: var(--theme-surface-2) !important;
+}
+
+/* Transizioni tema */
+html[data-theme='sunflower-blackcat'] body,
+html[data-theme='sunflower-blackcat'] .app-shell,
+html[data-theme='sunflower-blackcat'] .app-top-nav,
+html[data-theme='sunflower-blackcat'] .card,
+html[data-theme='sunflower-blackcat'] ul.shopping-items-list,
+html[data-theme='sunflower-blackcat'] a.home-tile,
+html[data-theme='sunflower-blackcat'] .home-hero {
+  transition:
+    background-color 0.22s ease,
+    color 0.18s ease,
+    border-color 0.18s ease,
+    box-shadow 0.22s ease;
+}

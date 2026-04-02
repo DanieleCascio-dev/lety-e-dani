@@ -56,51 +56,89 @@ async function onSubmit() {
 </script>
 
 <template>
-  <main class="login-main d-flex align-items-center py-5">
-    <div class="container px-3" style="max-width: 22rem">
-      <h1 class="h4 text-center mb-4 fw-semibold">Accedi</h1>
-      <p class="text-secondary small text-center mb-4">Lety e Dani — solo account autorizzati</p>
+  <main class="login-main d-flex align-items-center justify-content-center py-4 py-md-5 px-3">
+    <div class="login-wrap w-100" style="max-width: 22rem">
+      <div class="login-hero text-center mb-4">
+        <p class="text-secondary small mb-2 mb-sm-3 lh-sm px-1 login-welcome">
+          Bentornat* nel nostro spazio
+        </p>
+        <h1 class="h5 fw-semibold mb-1 text-body">Lety e Dani</h1>
+        <p class="text-secondary small mb-0">Accedi con l’account che vi abbiamo abilitato.</p>
+      </div>
 
-      <div v-if="errorMsg" class="alert alert-danger small py-2 mb-3" role="alert">
+      <div
+        v-if="errorMsg"
+        class="alert login-alert small py-2 px-3 mb-3 rounded-3"
+        role="alert"
+      >
         {{ errorMsg }}
       </div>
 
-      <form class="card shadow-sm border-0" @submit.prevent="onSubmit">
+      <form class="login-panel card border rounded-3" @submit.prevent="onSubmit">
         <div class="card-body p-4">
+          <h2 class="h6 fw-semibold mb-3 text-body">Accedi</h2>
           <div class="mb-3">
-            <label for="login-email" class="form-label">Email</label>
+            <label for="login-email" class="form-label small fw-semibold">Email</label>
             <input
               id="login-email"
               v-model="email"
               type="email"
-              class="form-control"
+              class="form-control rounded-3"
               autocomplete="username"
               required
             />
           </div>
           <div class="mb-4">
-            <label for="login-password" class="form-label">Password</label>
+            <label for="login-password" class="form-label small fw-semibold">Password</label>
             <input
               id="login-password"
               v-model="password"
               type="password"
-              class="form-control"
+              class="form-control rounded-3"
               autocomplete="current-password"
               required
             />
           </div>
-          <button type="submit" class="btn btn-primary w-100" :disabled="!canSubmit">
+          <button
+            type="submit"
+            class="btn btn-primary w-100 rounded-3 py-2 fw-semibold"
+            :disabled="!canSubmit"
+          >
             {{ loading ? 'Accesso…' : 'Entra' }}
           </button>
         </div>
       </form>
-      <p class="text-center text-secondary small mt-3 mb-0">Resti collegato fino al logout (sessione salvata sul dispositivo).</p>
+      <p class="text-center text-secondary small mt-3 mb-0 login-footnote">
+        Resti collegat* fino a quando non esci: la sessione resta sul dispositivo.
+      </p>
     </div>
   </main>
 </template>
 
 <style scoped>
 .login-main {
-  min-height: 70vh;
+  min-height: calc(100dvh - 3.5rem);
+}
+
+.login-panel {
+  background: var(--bs-secondary-bg);
+  color: var(--bs-body-color);
+  border-color: var(--bs-border-color-translucent, var(--bs-border-color)) !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.07);
+}
+
+.login-panel .card-body {
+  background: transparent;
+}
+
+.login-alert {
+  background: rgba(var(--bs-danger-rgb), 0.12);
+  border: 1px solid rgba(var(--bs-danger-rgb), 0.28);
+  color: var(--bs-danger);
+  margin-bottom: 0;
+}
+
+.login-footnote {
+  line-height: 1.35;
 }
 </style>

@@ -9,10 +9,12 @@
     saveAppUserThemePreferences,
     useAppStorage,
   } from "@/composables/useAppStorage";
+  import { useTheme } from "@/composables/useTheme";
   import type { IconShape } from "@/types/app";
 
   const route = useRoute();
   const { activeUser, userProfiles, profileFor } = useAppStorage();
+  const { activeTheme, setTheme, themeOptions } = useTheme();
 
   const currentEmail = computed(() => authSession.value?.user?.email ?? "");
 
@@ -225,9 +227,40 @@
       <p class="text-secondary small mb-4">
         Account
         <strong>{{ activeUser === "daniele" ? "Daniele" : "Letizia" }}</strong>
-        — email, password, colori dell’interfaccia e icona negli elenchi (lista
-        spesa, ecc.).
+        — email, password, aspetto, colori dell’interfaccia e icona negli elenchi
+        (lista spesa, ecc.).
       </p>
+
+      <section class="card shadow-sm border-0 mb-3">
+        <div class="card-body">
+          <h2 class="h6 mb-2">Aspetto</h2>
+          <p class="small text-secondary mb-3">
+            Tema dell’interfaccia, salvato su questo dispositivo (localStorage).
+          </p>
+          <div
+            v-for="opt in themeOptions"
+            :key="opt.id"
+            class="form-check mb-3"
+          >
+            <input
+              :id="`profile-ui-theme-${opt.id}`"
+              class="form-check-input"
+              type="radio"
+              name="profile-ui-theme"
+              :value="opt.id"
+              :checked="activeTheme === opt.id"
+              @change="setTheme(opt.id)"
+            />
+            <label
+              class="form-check-label"
+              :for="`profile-ui-theme-${opt.id}`"
+            >
+              <span class="d-block fw-medium">{{ opt.label }}</span>
+              <span class="small text-secondary">{{ opt.description }}</span>
+            </label>
+          </div>
+        </div>
+      </section>
 
       <section class="card shadow-sm border-0 mb-3">
         <div class="card-body">
@@ -320,6 +353,14 @@
           <p class="small text-secondary mb-3">
             Navbar in alto e sfondo delle pagine. Valori predefiniti dell’app se
             lasci selezionato «Predefinito».
+          </p>
+          <p
+            v-if="activeTheme === 'sunflower-blackcat'"
+            class="small rounded-2 py-2 px-2 mb-3 border bg-body-tertiary text-secondary"
+          >
+            Con il tema <strong>Sunflower &amp; Black Cat</strong> questi colori
+            non sono applicati: l’app usa il design system scuro. Torna al tema
+            Bootstrap per personalizzare navbar e sfondo.
           </p>
 
           <div class="form-check mb-2">

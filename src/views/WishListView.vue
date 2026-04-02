@@ -739,7 +739,7 @@
 
       <div
         v-if="!wishLists.length && !wishListsLoading"
-        class="alert alert-light border mb-3 small py-2"
+        class="wish-empty-hint mb-3 small py-2 px-3 rounded-3"
       >
         Nessuna lista ancora. Tocca <strong>+</strong> per iniziare.
       </div>
@@ -901,7 +901,7 @@
               </button>
             </div>
             <div
-              class="shopping-swipe-front wish-swipe-card-front d-flex flex-column w-100 min-w-0 touch-manipulation"
+              class="shopping-swipe-front wish-swipe-card-front d-flex flex-column w-100 min-w-0"
               :class="[
                 it.status === 'purchased' || it.status === 'dismissed'
                   ? 'shopping-swipe-front--done bg-body-tertiary'
@@ -1316,14 +1316,14 @@
           selectedWishListId &&
           items.length
         "
-        class="alert alert-light border small py-3 mb-0"
+        class="wish-empty-hint small py-3 px-3 mb-0 rounded-3"
       >
         Nessun elemento in questa categoria. Cambia filtro sopra.
       </div>
 
       <div
         v-if="!loading && !items.length && !displayError && selectedWishListId"
-        class="wish-empty card border-0 shadow-sm mb-3"
+        class="wish-empty card border mb-3 rounded-3"
       >
         <div class="card-body text-center py-4 px-3">
           <p class="fw-semibold mb-2">Incolla un link da qualsiasi sito</p>
@@ -2069,6 +2069,25 @@
     background: rgba(220, 53, 69, 0.1);
     border: 1px solid rgba(220, 53, 69, 0.25);
     color: var(--bs-danger);
+  }
+
+  /* Messaggi vuoto / hint: stesso linguaggio dei filtri (no alert-light su tema scuro) */
+  .wish-empty-hint {
+    background: var(--bs-secondary-bg);
+    color: var(--bs-body-color);
+    border: 1px solid var(--bs-border-color-translucent, var(--bs-border-color));
+  }
+
+  .wish-empty {
+    background: var(--bs-secondary-bg);
+    color: var(--bs-body-color);
+    border-color: var(--bs-border-color-translucent, var(--bs-border-color)) !important;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+  }
+
+  .wish-empty .card-body {
+    background: transparent;
+    color: var(--bs-body-color);
   }
 
   .wish-note-label {

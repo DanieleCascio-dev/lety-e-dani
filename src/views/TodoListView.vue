@@ -1041,7 +1041,7 @@
               </button>
             </div>
             <div
-              class="shopping-swipe-front d-flex align-items-center gap-2 w-100 min-w-0 px-2 py-1 shopping-row-inner touch-manipulation"
+              class="shopping-swipe-front d-flex align-items-center gap-2 w-100 min-w-0 px-2 py-1 shopping-row-inner"
               :class="[
                 item.done
                   ? 'shopping-swipe-front--done bg-body-tertiary'

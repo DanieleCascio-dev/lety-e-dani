@@ -2,6 +2,19 @@
 <html lang="it">
   <head>
     <meta charset="UTF-8" />
+    <script>
+      (function () {
+        try {
+          var k = 'lety-dani:ui-theme';
+          document.documentElement.dataset.theme =
+            localStorage.getItem(k) === 'sunflower-blackcat'
+              ? 'sunflower-blackcat'
+              : 'bootstrap';
+        } catch (e) {
+          document.documentElement.dataset.theme = 'bootstrap';
+        }
+      })();
+    </script>
     <link rel="icon" href="/android_192.png" type="image/png" />
 
     <meta

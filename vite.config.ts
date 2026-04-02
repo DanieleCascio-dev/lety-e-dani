@@ -30,6 +30,7 @@ export default defineConfig(({ mode }) => {
           'favicon.ico',
           'favicon_flowerCat.ico',
           'sunflower.jpg',
+          'sunflower_pattern.png',
           'android_192.png',
           'android_512.png',
         ],

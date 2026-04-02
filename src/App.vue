@@ -2,6 +2,7 @@
   import { computed, onMounted, onUnmounted, ref, watch } from "vue";
   import { RouterLink, RouterView, useRoute, useRouter } from "vue-router";
   import { useAppStorage, signOutUser } from "@/composables/useAppStorage";
+  import { useTheme } from "@/composables/useTheme";
   import { resetTodoState } from "@/composables/useTodoLists";
   import { resetWishlistState } from "@/composables/useWishlist";
   import { getSupabaseClient } from "@/lib/supabase";
@@ -24,19 +25,32 @@
   const router = useRouter();
   const { activeUser, setActiveUser, appUserSessionValid, profileFor } =
     useAppStorage();
+  const { activeTheme } = useTheme();
+
+  /** Nel tema scuro custom i colori pagina/nav da profilo non si mescolano al design system. */
+  const themeIgnoresProfileChrome = computed(
+    () => activeTheme.value === "sunflower-blackcat",
+  );
 
   const appShellStyle = computed(() => {
+    if (themeIgnoresProfileChrome.value) return undefined;
     const bg = profileFor(activeUser.value).pageBg;
     return bg ? { background: bg } : undefined;
   });
 
   const appNavStyle = computed(() => {
+    if (themeIgnoresProfileChrome.value) return undefined;
     const bg = profileFor(activeUser.value).navbarBg;
     return bg ? { backgroundColor: bg } : undefined;
   });
 
-  const appNavUsesDefaultBg = computed(
-    () => !profileFor(activeUser.value).navbarBg,
+  const appNavUsesDefaultBg = computed(() => {
+    if (themeIgnoresProfileChrome.value) return true;
+    return !profileFor(activeUser.value).navbarBg;
+  });
+
+  const topNavColorMode = computed(() =>
+    themeIgnoresProfileChrome.value ? "dark" : "light",
   );
 
   watch(appUserSessionValid, (ok) => {
@@ -112,8 +126,11 @@
     :style="appShellStyle"
   >
     <nav
-      class="navbar navbar-light border-bottom sticky-top app-top-nav"
-      :class="{ 'bg-body': appNavUsesDefaultBg }"
+      class="navbar border-bottom sticky-top app-top-nav"
+      :class="[
+        topNavColorMode === 'dark' ? 'navbar-dark' : 'navbar-light',
+        { 'bg-body': appNavUsesDefaultBg },
+      ]"
       :style="appNavStyle"
     >
       <div
@@ -319,31 +336,45 @@
       v-if="route.name !== 'login'"
       :announcement-id="HOME_FEATURE_ANNOUNCEMENT_ID"
     >
-      <template #title>Novità: Desideri</template>
-      <p class="mb-2 text-body-secondary">
-        Una <strong>wishlist condivisa</strong>: raccogli i link dei prodotti che ti interessano,
-        da qualsiasi sito, in un unico posto.
+      <template #title>Cosa c’è di nuovo</template>
+      <p class="mb-3 text-body-secondary">
+        Abbiamo aggiunto qualcosa di nuovo e ritoccato il resto per usarlo ancora più comodamente dal
+        telefono.
       </p>
-      <p class="fw-semibold mb-3">Cosa puoi fare</p>
-      <ul class="mb-0 ps-3">
+      <p class="fw-semibold mb-2">Desideri</p>
+      <ul class="mb-3 ps-3">
         <li class="mb-2">
-          <strong>Aggiungi da link</strong>: incolla l’URL e ottieni titolo, immagine e prezzo quando
-          l’anteprima è disponibile.
-        </li>
-        <li class="mb-2">
-          <strong>Più liste</strong>: crea o rinomina le liste dal menu e passa da una all’altra; tutto
-          resta sincronizzato tra i vostri account (come Spesa e Todo).
+          Una <strong>lista desideri condivisa</strong>: tieni i prodotti che ti piacciono, da
+          qualsiasi negozio online, tutti insieme — niente app separate da ricordare.
         </li>
         <li class="mb-2">
-          <strong>Stato prodotto</strong>: segna come <em>comprato</em> o <em>archiviato</em> dal menu
-          della card — su mobile puoi anche <strong>scorrere la card</strong> a destra o a sinistra.
+          <strong>Incolla il link</strong> di una pagina prodotto: dove è possibile, compaiono subito
+          titolo, immagine e prezzo, così capisci a colpo d’occhio cosa stai salvando.
         </li>
-        <li>
-          <strong>Note</strong>: annotazioni private sulla card per ricordare taglie, colori o promozioni.
+        <li class="mb-2">
+          <strong>Più liste</strong> con nomi tuoi: creale e rinominal dal menu e passa dall’una
+          all’altra con un tap. Si aggiorna per entrambi, come la spesa e i to-do.
         </li>
+        <li class="mb-2">
+          Con i <strong>filtri</strong> in alto puoi vedere cos’è ancora in lista, cos’hai già preso e
+          cos’hai messo da parte — più tutto insieme, se ti serve.
+        </li>
+        <li class="mb-2">
+          Sul telefono puoi <strong>far scorrere</strong> una card a destra o a sinistra per le
+          azioni rapide; sulle card puoi anche lasciarti <strong>una nota</strong> (taglia, colore,
+          promozione…).
+        </li>
+        <li class="mb-2">Nuovo tema scuro per iò sito, attivabile nella sezione profilo</li>
       </ul>
-      <p class="mt-3 mb-0 small text-secondary">
-        Trovi la sezione <strong>Desideri</strong> nella barra in alto, accanto a Home e Spesa.
+      <p class="fw-semibold mb-2">Spesa e To-do</p>
+      <p class="mb-3 text-body-secondary">
+        Anche qui, sul telefono: <strong>scorri la riga</strong> verso un lato o l’altro per
+        <strong>modificare</strong> o <strong>togliere</strong> un elemento senza aprire menu a
+        cascata.
+      </p>
+      <p class="mb-0 small text-secondary">
+        La sezione <strong>Desideri</strong> è nella barra in alto, accanto a Home e Spesa. Buona
+        organizzazione!
       </p>
     </FeatureAnnouncementModal>
   </div>
@@ -351,7 +382,7 @@
 
 <style scoped>
   .app-shell {
-    background: var(--bs-gray-200, #e9ecef);
+    background: var(--app-shell-bg, var(--bs-gray-200, #e9ecef));
   }
 
   .profile-avatar-btn {

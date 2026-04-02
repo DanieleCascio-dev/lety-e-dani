@@ -1176,7 +1176,7 @@
               </button>
             </div>
             <div
-              class="shopping-swipe-front d-flex align-items-center gap-2 w-100 min-w-0 px-2 py-1 shopping-row-inner touch-manipulation"
+              class="shopping-swipe-front d-flex align-items-center gap-2 w-100 min-w-0 px-2 py-1 shopping-row-inner"
               :class="[
                 item.done
                   ? 'shopping-swipe-front--done bg-body-tertiary'
@@ -1513,6 +1513,7 @@
     width: 100%;
     min-width: 0;
     max-width: 100%;
+    /* Solo pan-y: lo swipe orizzontale resta per JS; pan-x lo ruba al browser su molti mobile */
     touch-action: pan-y;
     transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
     /* Nessun radius: con bg-body sugli angoli altrimenti si intravede il layer azioni */

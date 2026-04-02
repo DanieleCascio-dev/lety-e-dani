@@ -12,10 +12,12 @@ import NavTodoIcon from "@/components/icons/NavTodoIcon.vue";
       class="container-fluid px-3 px-sm-4 text-center"
       style="max-width: 28rem"
     >
-      <p class="text-secondary small mb-2 mb-sm-3 lh-sm px-1">
-        Benvenut* nel nostro magico spazio!
-      </p>
-      <h1 class="h5 fw-semibold mb-3 mb-sm-4 text-body">Lety e Dani</h1>
+      <div class="home-hero mb-3 mb-sm-4">
+        <p class="text-secondary small mb-2 mb-sm-3 lh-sm px-1 home-welcome">
+          Benvenut* nel nostro magico spazio!
+        </p>
+        <h1 class="h5 fw-semibold mb-0 text-body home-title">Lety e Dani</h1>
+      </div>
       <ul class="list-unstyled d-grid gap-2 mb-0">
         <li>
           <RouterLink
