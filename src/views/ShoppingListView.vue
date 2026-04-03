@@ -52,6 +52,63 @@
   /** Menu ⋮ azioni lista (nuova, AI, rinomina, elimina) */
   const listActionsMenuOpen = ref(false);
   const listActionsMenuRoot = ref<HTMLElement | null>(null);
+  const listActionsMoreBtnRef = ref<HTMLButtonElement | null>(null);
+  const listActionsMenuPanelRef = ref<HTMLElement | null>(null);
+  const listActionsMenuStyle = ref<Record<string, string>>({});
+
+  function updateListActionsMenuPosition() {
+    const btn = listActionsMoreBtnRef.value;
+    if (!btn || !listActionsMenuOpen.value) return;
+    const r = btn.getBoundingClientRect();
+    if (r.width <= 0 && r.height <= 0) return;
+    const vw = document.documentElement.clientWidth;
+    const vh = window.innerHeight;
+    const gap = 8;
+    const panel = listActionsMenuPanelRef.value;
+    const ph = panel?.offsetHeight ?? 160;
+    let top = r.bottom + gap;
+    const spaceBelow = vh - r.bottom - gap;
+    const spaceAbove = r.top - gap;
+    if (ph > spaceBelow && spaceAbove >= ph) {
+      top = r.top - ph - gap;
+    } else if (top + ph > vh - 8) {
+      top = Math.max(8, vh - ph - 8);
+    }
+    listActionsMenuStyle.value = {
+      position: "fixed",
+      top: `${Math.round(top)}px`,
+      right: `${Math.round(Math.max(8, vw - r.right))}px`,
+      left: "auto",
+      minWidth: `${Math.max(200, Math.round(r.width))}px`,
+      zIndex: "1060",
+    };
+  }
+
+  function bindListActionsMenuPositionListeners() {
+    window.addEventListener("scroll", updateListActionsMenuPosition, true);
+    window.addEventListener("resize", updateListActionsMenuPosition);
+  }
+
+  function unbindListActionsMenuPositionListeners() {
+    window.removeEventListener("scroll", updateListActionsMenuPosition, true);
+    window.removeEventListener("resize", updateListActionsMenuPosition);
+  }
+
+  watch(listActionsMenuOpen, async (open) => {
+    if (!open) {
+      unbindListActionsMenuPositionListeners();
+      listActionsMenuStyle.value = {};
+      return;
+    }
+    await nextTick();
+    requestAnimationFrame(() => {
+      updateListActionsMenuPosition();
+      requestAnimationFrame(() => {
+        updateListActionsMenuPosition();
+        bindListActionsMenuPositionListeners();
+      });
+    });
+  });
   const swipeReveal = useShoppingSwipeReveal({ revealPx: 100 });
 
   function hasOpenSwipeReveal(): boolean {
@@ -352,7 +409,13 @@
     }
     if (listActionsMenuOpen.value) {
       const root = listActionsMenuRoot.value;
-      if (root && t instanceof Node && !root.contains(t)) closeListActionsMenu();
+      const panel = listActionsMenuPanelRef.value;
+      if (t instanceof Node) {
+        const inside = Boolean(
+          (root && root.contains(t)) || (panel && panel.contains(t)),
+        );
+        if (!inside) closeListActionsMenu();
+      }
     }
     if (t instanceof Element && !t.closest(".shopping-swipe-row")) {
       swipeReveal.closeAll();
@@ -413,6 +476,7 @@
   });
 
   onUnmounted(() => {
+    unbindListActionsMenuPositionListeners();
     document.removeEventListener("pointerdown", onDocumentPointerDown, true);
     document.removeEventListener("keydown", onDocumentKeydown, true);
   });
@@ -557,6 +621,7 @@
             class="dropdown flex-shrink-0 shopping-list-actions-dd"
           >
             <button
+              ref="listActionsMoreBtnRef"
               type="button"
               class="btn btn-light border-0 rounded-3 d-flex align-items-center justify-content-center shopping-more-btn shadow-sm"
               :disabled="groceryListsLoading"
@@ -578,9 +643,13 @@
                 />
               </svg>
             </button>
+          </div>
+          <Teleport to="body">
             <ul
-              class="dropdown-menu dropdown-menu-end shadow border-0 py-1"
-              :class="{ show: listActionsMenuOpen }"
+              v-if="listActionsMenuOpen"
+              ref="listActionsMenuPanelRef"
+              class="dropdown-menu dropdown-menu-end show shadow border-0 py-1 list-actions-menu-floating"
+              :style="listActionsMenuStyle"
               role="menu"
             >
               <li role="none">
@@ -636,7 +705,7 @@
                 </button>
               </li>
             </ul>
-          </div>
+          </Teleport>
         </div>
         <p
           v-if="!isGroceryCloud"
@@ -1648,6 +1717,17 @@
 
   .list-picker-row:hover {
     background-color: var(--bs-light, #f8f9fa);
+  }
+
+  /* Menu ⋮ azioni lista: Teleport + fixed (evita taglio su mobile) */
+  :global(.list-actions-menu-floating.dropdown-menu) {
+    position: fixed !important;
+    margin-top: 0 !important;
+    transform: none !important;
+    max-height: min(70dvh, 22rem);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: calc(0.35rem + env(safe-area-inset-bottom, 0px));
   }
 
   /* Modale rimozione articolo: compatto, centrato (no bottom sheet a tutta larghezza) */

@@ -202,19 +202,9 @@ type LocalV2Payload = {
   selectedListId: string | null
 }
 
-function groceryListDatePart(list: GroceryListMeta): string {
-  return new Intl.DateTimeFormat('it-IT', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  }).format(new Date(list.createdAt))
-}
-
 export function groceryListDisplayName(list: GroceryListMeta): string {
-  const datePart = groceryListDatePart(list)
   const t = (list.title ?? '').trim()
-  if (t) return `${t} · ${datePart}`
-  return `Lista del ${datePart}`
+  return t || 'Lista'
 }
 
 function mapListRow(r: {

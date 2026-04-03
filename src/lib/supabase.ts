@@ -1,6 +1,6 @@
-import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
-let client: SupabaseClient | null | undefined
+let client: SupabaseClient | null | undefined;
 
 /**
  * Lock “immediato” per GoTrue: evita navigator.locks (timeout 5s, HMR, più tab)
@@ -11,23 +11,23 @@ async function authLockImmediate<R>(
   _acquireTimeout: number,
   fn: () => Promise<R>,
 ): Promise<R> {
-  return fn()
+  return fn();
 }
 
 export function getSupabaseClient(): SupabaseClient | null {
-  if (client !== undefined) return client
-  const url = import.meta.env.VITE_SUPABASE_URL?.trim()
-  const key = import.meta.env.VITE_SUPABASE_ANON_KEY?.trim()
+  if (client !== undefined) return client;
+  const url = import.meta.env.VITE_SUPABASE_URL?.trim();
+  const key = import.meta.env.VITE_SUPABASE_ANON_KEY?.trim();
   if (!url || !key) {
-    client = null
-    return null
+    client = null;
+    return null;
   }
   client = createClient(url, key, {
     auth: {
       persistSession: true,
       autoRefreshToken: true,
       detectSessionInUrl: true,
-      storage: typeof localStorage !== 'undefined' ? localStorage : undefined,
+      storage: typeof localStorage !== "undefined" ? localStorage : undefined,
       lock: authLockImmediate,
     },
     realtime: {
@@ -36,6 +36,6 @@ export function getSupabaseClient(): SupabaseClient | null {
         eventsPerSecond: 10,
       },
     },
-  })
-  return client
+  });
+  return client;
 }
