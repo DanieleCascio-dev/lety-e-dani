@@ -221,11 +221,13 @@ export function ensureTodoRealtimeConnected() {
   setupTodoRealtimeChannel()
 }
 
-export async function refreshTodoData(options?: { silent?: boolean }) {
+export async function refreshTodoData(options?: { silent?: boolean; skipGarden?: boolean }) {
   const sb = getSupabaseClient()
   if (!sb || !authSession.value?.user) return
   const silent = options?.silent !== false
-  await refreshGardenContext()
+  if (!options?.skipGarden) {
+    await refreshGardenContext()
+  }
   await fetchTodoListsFromSupabase(silent)
   await ensureSelectedTodoListAfterFetch()
   await fetchTodosFromSupabase(silent)

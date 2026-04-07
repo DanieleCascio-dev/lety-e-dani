@@ -562,8 +562,8 @@ async function fetchAppUserRowOnce(userId: string): Promise<FetchAppUserResult> 
       'app_role, display_name, power_admin, icon_color, icon_shape, navbar_bg, page_bg, avatar_url',
     )
     .eq('user_id', userId)
-    .maybeSingle()
     .abortSignal(queryAbortSignal())
+    .maybeSingle()
   if (error) {
     if (isTransientPostgrestError(error)) {
       lastAppUserFetchError.value = error.message
@@ -573,8 +573,8 @@ async function fetchAppUserRowOnce(userId: string): Promise<FetchAppUserResult> 
       .from('app_user')
       .select('app_role')
       .eq('user_id', userId)
-      .maybeSingle()
       .abortSignal(queryAbortSignal())
+      .maybeSingle()
     if (legacyErr) {
       if (isTransientPostgrestError(legacyErr)) {
         lastAppUserFetchError.value = legacyErr.message
@@ -614,6 +614,16 @@ async function fetchAppUserRow(userId: string): Promise<FetchAppUserResult> {
   return last
 }
 
+/** Evita 2 query ripetute (member + app_user) a ogni refresh se garden e tempistica invariate. */
+let lastPeerHydrateGardenId: string | null = null
+let lastPeerHydrateAt = 0
+const PEER_HYDRATE_MIN_INTERVAL_MS = 10 * 60 * 1000
+
+function clearPeerHydrateCache() {
+  lastPeerHydrateGardenId = null
+  lastPeerHydrateAt = 0
+}
+
 /** Carica display_name (e slug) dei membri del garden corrente per etichette “chi ha aggiunto”. */
 async function hydrateGardenPeerProfilesFromGarden() {
   const sb = getSupabaseClient()
@@ -645,35 +655,57 @@ async function hydrateGardenPeerProfilesFromGarden() {
   }
 }
 
+/** Coalescing: più chiamate concorrenti (es. refresh paralleli) condividono una sola richiesta garden. */
+let gardenHydrationInFlight: Promise<void> | null = null
+
 async function loadCurrentGardenFromSupabase() {
-  const sb = getSupabaseClient()
-  const uid = authSession.value?.user?.id
-  if (!sb || !uid) {
-    currentGarden.value = null
-    return
-  }
-  const { data, error } = await sb
-    .from('garden_member')
-    .select('garden_id, garden:garden_id (id, name)')
-    .eq('user_id', uid)
-    .limit(1)
-    .maybeSingle()
-    .abortSignal(queryAbortSignal())
-  if (error || !data) {
-    currentGarden.value = null
-    return
-  }
-  const row = data as {
-    garden_id: string
-    garden: { id: string; name: string } | { id: string; name: string }[] | null
-  }
-  const g = Array.isArray(row.garden) ? row.garden[0] : row.garden
-  if (g?.id && typeof g.name === 'string') {
-    currentGarden.value = { id: g.id, name: g.name }
-    await hydrateGardenPeerProfilesFromGarden()
-  } else {
-    currentGarden.value = null
-  }
+  if (gardenHydrationInFlight) return gardenHydrationInFlight
+  gardenHydrationInFlight = (async () => {
+    try {
+      const sb = getSupabaseClient()
+      const uid = authSession.value?.user?.id
+      if (!sb || !uid) {
+        currentGarden.value = null
+        clearPeerHydrateCache()
+        return
+      }
+      const { data, error } = await sb
+        .from('garden_member')
+        .select('garden_id, garden:garden_id (id, name)')
+        .eq('user_id', uid)
+        .limit(1)
+        .abortSignal(queryAbortSignal())
+        .maybeSingle()
+      if (error || !data) {
+        currentGarden.value = null
+        clearPeerHydrateCache()
+        return
+      }
+      const row = data as {
+        garden_id: string
+        garden: { id: string; name: string } | { id: string; name: string }[] | null
+      }
+      const g = Array.isArray(row.garden) ? row.garden[0] : row.garden
+      if (g?.id && typeof g.name === 'string') {
+        currentGarden.value = { id: g.id, name: g.name }
+        const now = Date.now()
+        const needPeerHydrate =
+          lastPeerHydrateGardenId !== g.id ||
+          now - lastPeerHydrateAt >= PEER_HYDRATE_MIN_INTERVAL_MS
+        if (needPeerHydrate) {
+          await hydrateGardenPeerProfilesFromGarden()
+          lastPeerHydrateGardenId = g.id
+          lastPeerHydrateAt = now
+        }
+      } else {
+        currentGarden.value = null
+        clearPeerHydrateCache()
+      }
+    } finally {
+      gardenHydrationInFlight = null
+    }
+  })()
+  return gardenHydrationInFlight
 }
 
 /**
@@ -845,12 +877,15 @@ export const appUserSessionValid = ref(false)
 /**
  * Ricarica liste e articoli dal server (es. all’ingresso nella pagina lista spesa).
  * Il parametro `silent` evita spinner pieni durante il refresh in background.
+ * `skipGarden`: se true, non ricarica garden (es. dopo `refreshGardenContext()` condiviso).
  */
-export async function refreshGroceryData(options?: { silent?: boolean }) {
+export async function refreshGroceryData(options?: { silent?: boolean; skipGarden?: boolean }) {
   const sb = getSupabaseClient()
   if (!sb || !authSession.value?.user) return
   const silent = options?.silent !== false
-  await loadCurrentGardenFromSupabase()
+  if (!options?.skipGarden) {
+    await loadCurrentGardenFromSupabase()
+  }
   await fetchGroceryListsFromSupabase(silent)
   await ensureSelectedListAfterFetch()
   await fetchGroceriesFromSupabase(silent)
@@ -888,6 +923,7 @@ async function syncSessionToAppUserImpl(session: Session | null, event?: AuthCha
     lastSyncedAuthUserId = null
     appUserSessionValid.value = false
     authSession.value = null
+    clearPeerHydrateCache()
     teardownGroceryRealtime()
     groceries.value = []
     groceryLists.value = []
@@ -926,6 +962,7 @@ async function syncSessionToAppUserImpl(session: Session | null, event?: AuthCha
   if (result.kind === 'missing' || !row || !role) {
     appUserSessionValid.value = false
     currentGarden.value = null
+    clearPeerHydrateCache()
     powerAdmin.value = false
     lastSyncedAuthUserId = null
     teardownGroceryRealtime()

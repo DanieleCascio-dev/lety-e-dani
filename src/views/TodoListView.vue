@@ -396,6 +396,39 @@
       currentTodoList.value.every((i) => i.done),
   );
 
+  const STORAGE_HIDE_DONE = "lety-dani:todo-hide-done";
+
+  function readHideDonePreference(): boolean {
+    try {
+      return localStorage.getItem(STORAGE_HIDE_DONE) === "1";
+    } catch {
+      return false;
+    }
+  }
+
+  const hideDoneItems = ref(readHideDonePreference());
+
+  watch(hideDoneItems, (v) => {
+    try {
+      localStorage.setItem(STORAGE_HIDE_DONE, v ? "1" : "0");
+    } catch {
+      /* ignore */
+    }
+  });
+
+  const visibleTodoList = computed(() =>
+    hideDoneItems.value
+      ? currentTodoList.value.filter((i) => !i.done)
+      : currentTodoList.value,
+  );
+
+  const hideDoneAllHiddenNote = computed(
+    () =>
+      hideDoneItems.value &&
+      currentTodoList.value.length > 0 &&
+      visibleTodoList.value.length === 0,
+  );
+
   const bulkMasterCheckboxRef = ref<HTMLInputElement | null>(null);
 
   watch(
@@ -979,37 +1012,55 @@
 
       <div
         v-if="currentTodoList.length"
-        class="mb-1 d-flex justify-content-between align-items-center shopping-list-heading px-1"
+        class="mb-1 d-flex justify-content-between align-items-center shopping-list-heading px-1 flex-wrap gap-2"
       >
         <span class="small fw-semibold text-secondary">Attività</span>
-        <div
-          class="form-check mb-0 shopping-bulk-master d-flex align-items-center gap-2"
-        >
-          <input
-            id="todo-bulk-master"
-            ref="bulkMasterCheckboxRef"
-            type="checkbox"
-            class="form-check-input shopping-check shopping-bulk-master-check flex-shrink-0"
-            :checked="isAllItemsDone"
-            aria-label="Segna o deseleziona tutte le attività della lista"
-            title="Segna tutte / deseleziona tutte"
-            @change="onBulkMasterChange"
-          />
-          <label
-            class="form-check-label small text-secondary mb-0 user-select-none"
-            for="todo-bulk-master"
+        <div class="d-flex align-items-center gap-2 ms-auto flex-wrap justify-content-end">
+          <button
+            type="button"
+            class="btn btn-sm btn-outline-secondary touch-manipulation shopping-hide-done-toggle"
+            :class="{ active: hideDoneItems }"
+            :disabled="!hideDoneItems && !hasDoneItems"
+            :aria-pressed="hideDoneItems"
+            :aria-label="
+              hideDoneItems
+                ? 'Mostra attività completate'
+                : 'Nascondi attività completate'
+            "
+            :title="hideDoneItems ? 'Mostra completate' : 'Nascondi completate'"
+            @click="hideDoneItems = !hideDoneItems"
           >
-            Tutti
-          </label>
+            {{ hideDoneItems ? "Mostra completate" : "Nascondi completate" }}
+          </button>
+          <div
+            class="form-check mb-0 shopping-bulk-master d-flex align-items-center gap-2"
+          >
+            <input
+              id="todo-bulk-master"
+              ref="bulkMasterCheckboxRef"
+              type="checkbox"
+              class="form-check-input shopping-check shopping-bulk-master-check flex-shrink-0"
+              :checked="isAllItemsDone"
+              aria-label="Segna o deseleziona tutte le attività della lista"
+              title="Segna tutte / deseleziona tutte"
+              @change="onBulkMasterChange"
+            />
+            <label
+              class="form-check-label small text-secondary mb-0 user-select-none"
+              for="todo-bulk-master"
+            >
+              Tutti
+            </label>
+          </div>
         </div>
       </div>
 
       <ul
-        v-if="currentTodoList.length"
+        v-if="visibleTodoList.length"
         class="list-group list-group-flush shopping-items-list rounded-3"
       >
         <li
-          v-for="item in currentTodoList"
+          v-for="item in visibleTodoList"
           :key="item.id"
           class="list-group-item border-0 border-bottom shopping-list-row touch-manipulation shopping-list-row--compact shopping-swipe-row p-0"
           :class="{
@@ -1218,6 +1269,14 @@
         class="text-center text-secondary py-5 mb-0"
       >
         Caricamento…
+      </p>
+      <p
+        v-else-if="hideDoneAllHiddenNote"
+        class="text-center text-secondary small py-4 mb-0 px-2"
+      >
+        Solo attività completate. Usa
+        <strong class="text-body">Mostra completate</strong> per vederle di
+        nuovo.
       </p>
       <p
         v-else-if="selectedTodoListId"

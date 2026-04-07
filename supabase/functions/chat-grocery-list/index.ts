@@ -162,8 +162,15 @@ Deno.serve(async (req) => {
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL')
   const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')
-  if (!supabaseUrl || !supabaseAnonKey) {
-    return jsonResponse({ error: 'Configurazione Supabase mancante' }, 500)
+  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+  if (!supabaseUrl || !supabaseAnonKey || !serviceRoleKey) {
+    return jsonResponse(
+      {
+        error:
+          'Configurazione Supabase mancante (serve SUPABASE_URL, SUPABASE_ANON_KEY e SUPABASE_SERVICE_ROLE_KEY per questa funzione).',
+      },
+      500,
+    )
   }
 
   const openaiKey = Deno.env.get('OPENAI_API_KEY')
@@ -228,6 +235,11 @@ Deno.serve(async (req) => {
   }
 
   const gardenId = memRow.garden_id as string
+
+  /** Scritture su liste/items: service role dopo verifica JWT + membership (RLS con JWT da Edge può fallire su INSERT). */
+  const adminDb = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  })
 
   const { data: itemRows, error: itemsErr } = await supabase.from('grocery_items').select('text')
   if (itemsErr) {
@@ -349,7 +361,7 @@ La risposta deve rispettare lo schema JSON richiesto (nessun markdown).`
 
   const title = `chat - ${suffix}`.slice(0, 80)
 
-  const { data: listRow, error: listErr } = await supabase
+  const { data: listRow, error: listErr } = await adminDb
     .from('grocery_lists')
     .insert({ created_by: role, title, garden_id: gardenId })
     .select('id')
@@ -368,9 +380,9 @@ La risposta deve rispettare lo schema JSON richiesto (nessun markdown).`
     list_id: listId,
   }))
 
-  const { error: insErr } = await supabase.from('grocery_items').insert(inserts)
+  const { error: insErr } = await adminDb.from('grocery_items').insert(inserts)
   if (insErr) {
-    await supabase.from('grocery_lists').delete().eq('id', listId)
+    await adminDb.from('grocery_lists').delete().eq('id', listId)
     return jsonResponse({ error: insErr.message }, 500)
   }
 

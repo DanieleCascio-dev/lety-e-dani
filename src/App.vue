@@ -10,6 +10,7 @@
   import { RouterLink, RouterView, useRoute, useRouter } from "vue-router";
   import { authSession } from "@/auth/authSession";
   import {
+    refreshGardenContext,
     refreshGroceryData,
     signOutUser,
     useAppStorage,
@@ -184,14 +185,25 @@
     if (ev.key === "Escape") closeProfileMenu();
   }
 
-  /** Dopo minuti in background il browser può sospendere fetch/WS; al ritorno ricarichiamo liste in silenzio. */
+  /** Dopo tempo in background: un solo refresh garden + liste in parallelo (evita 3× garden + spam). */
+  const VISIBILITY_REFRESH_MIN_MS = 20_000;
+  let lastVisibilityRefreshAt = 0;
+
   function onVisibilityChange() {
     if (document.visibilityState !== "visible") return;
     if (!getSupabaseClient() || !authSession.value?.user || !appUserSessionValid.value)
       return;
-    void refreshGroceryData({ silent: true });
-    void refreshTodoData({ silent: true });
-    void refreshWishData({ silent: true });
+    const now = Date.now();
+    if (now - lastVisibilityRefreshAt < VISIBILITY_REFRESH_MIN_MS) return;
+    lastVisibilityRefreshAt = now;
+    void (async () => {
+      await refreshGardenContext();
+      await Promise.all([
+        refreshGroceryData({ silent: true, skipGarden: true }),
+        refreshTodoData({ silent: true, skipGarden: true }),
+        refreshWishData({ silent: true, skipGarden: true }),
+      ]);
+    })();
   }
 
   onMounted(() => {

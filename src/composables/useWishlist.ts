@@ -237,11 +237,13 @@ export function ensureWishRealtimeConnected() {
   setupWishRealtimeChannel()
 }
 
-export async function refreshWishData(options?: { silent?: boolean }) {
+export async function refreshWishData(options?: { silent?: boolean; skipGarden?: boolean }) {
   const sb = getSupabaseClient()
   if (!sb || !authSession.value?.user) return
   const silent = options?.silent !== false
-  await refreshGardenContext()
+  if (!options?.skipGarden) {
+    await refreshGardenContext()
+  }
   await fetchWishListsFromSupabase(silent)
   await ensureSelectedWishListAfterFetch()
   await fetchWishItemsFromSupabase(silent)

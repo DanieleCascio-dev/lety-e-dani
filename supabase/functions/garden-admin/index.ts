@@ -15,6 +15,20 @@ function jsonResponse(body: unknown, status = 200) {
   });
 }
 
+/** `app_user.display_name` è NOT NULL: mai stringa vuota o valori che diventano null in upsert. */
+function normalizeDisplayName(appRole: string, displayName: string): string {
+  const d = displayName.trim().slice(0, 80);
+  if (d.length > 0) return d;
+  const r = appRole.trim();
+  if (r.length > 0) {
+    return (r.charAt(0).toUpperCase() + r.slice(1).replace(/_/g, " ")).slice(
+      0,
+      80,
+    );
+  }
+  return "Utente";
+}
+
 type Body = {
   action?: unknown;
   name?: unknown;
@@ -212,8 +226,10 @@ Deno.serve(async (req) => {
             ? appRole.charAt(0).toUpperCase() +
               appRole.slice(1).replace(/_/g, " ")
             : "Utente";
-        const displayName =
-          displayNameIn || existingDn || derived;
+        const displayName = normalizeDisplayName(
+          appRole,
+          displayNameIn || existingDn || derived,
+        );
         if (existing && (existing as { user_id?: string }).user_id) {
           const { error } = await adminDb
             .from("app_user")
@@ -272,23 +288,40 @@ Deno.serve(async (req) => {
           appRole = local.replace(/[^a-z0-9_-]/gi, "_").slice(0, 64) || "utente";
         }
 
-        const displayName =
+        const displayNameRaw =
           typeof body.displayName === "string" && body.displayName.trim()
             ? body.displayName.trim().slice(0, 80)
             : "";
-        if (!displayName) {
+        if (!displayNameRaw) {
           return jsonResponse({ error: "Nome visualizzato obbligatorio" }, 400);
         }
+        const displayName = normalizeDisplayName(appRole, displayNameRaw);
 
-        const { error: appUserErr } = await adminDb.from("app_user").upsert(
-          {
-            user_id: newId,
-            app_role: appRole,
-            display_name: displayName,
-            power_admin: false,
-          },
-          { onConflict: "user_id" },
-        );
+        // Dopo creazione auth, il trigger può aver già inserito app_user (email note): upsert può
+        // produrre NULL su display_name in alcuni casi; usiamo insert/update espliciti.
+        const { data: existingAppUser } = await adminDb
+          .from("app_user")
+          .select("user_id")
+          .eq("user_id", newId)
+          .maybeSingle();
+
+        const appUserRow = {
+          user_id: newId,
+          app_role: appRole,
+          display_name: displayName,
+          power_admin: false,
+        };
+
+        const { error: appUserErr } = existingAppUser
+          ? await adminDb
+              .from("app_user")
+              .update({
+                app_role: appUserRow.app_role,
+                display_name: appUserRow.display_name,
+                power_admin: appUserRow.power_admin,
+              })
+              .eq("user_id", newId)
+          : await adminDb.from("app_user").insert(appUserRow);
 
         if (appUserErr) {
           const { error: delErr } = await adminDb.auth.admin.deleteUser(newId);
