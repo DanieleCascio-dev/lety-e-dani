@@ -10,7 +10,12 @@ export function useVeganRestaurantSearch() {
   const data = ref<VeganRestaurantSearchResult | null>(null)
   let searchGeneration = 0
 
-  async function search(latitude: number, longitude: number, radiusKm: number) {
+  async function search(
+    latitude: number,
+    longitude: number,
+    radiusKm: number,
+    options?: { strict?: boolean },
+  ) {
     const myGen = ++searchGeneration
     error.value = null
     loading.value = true
@@ -88,7 +93,12 @@ export function useVeganRestaurantSearch() {
               apikey: anon,
               'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ latitude, longitude, radiusKm }),
+            body: JSON.stringify({
+              latitude,
+              longitude,
+              radiusKm,
+              ...(options?.strict ? { strict: true } : {}),
+            }),
             signal: AbortSignal.timeout(SEARCH_FN_TIMEOUT_MS),
           })
         } catch (e) {
@@ -129,7 +139,12 @@ export function useVeganRestaurantSearch() {
         }
       } else {
         const { data: fnData, error: fnErr } = await sb.functions.invoke('search-vegan-restaurants', {
-          body: { latitude, longitude, radiusKm },
+          body: {
+            latitude,
+            longitude,
+            radiusKm,
+            ...(options?.strict ? { strict: true } : {}),
+          },
           timeout: SEARCH_FN_TIMEOUT_MS,
         })
         if (fnErr) {

@@ -132,6 +132,9 @@
   const itemRemoveModalOpen = ref(false);
   const itemRemoveTargetId = ref<string | null>(null);
   const itemRemoveSubmitting = ref(false);
+
+  const bulkAllModalOpen = ref(false);
+  const bulkAllSubmitting = ref(false);
   const itemEditId = ref<string | null>(null);
   const itemEditText = ref("");
   const itemEditSubmitting = ref(false);
@@ -383,9 +386,6 @@
     void setTodoItemDone(item.id, el.checked);
   }
 
-  const hasOpenItems = computed(() =>
-    currentTodoList.value.some((i) => !i.done),
-  );
   const hasDoneItems = computed(() =>
     currentTodoList.value.some((i) => i.done),
   );
@@ -429,23 +429,35 @@
       visibleTodoList.value.length === 0,
   );
 
-  const bulkMasterCheckboxRef = ref<HTMLInputElement | null>(null);
+  function openBulkAllModal() {
+    if (!currentTodoList.value.length) return;
+    bulkAllModalOpen.value = true;
+  }
 
-  watch(
-    [currentTodoList, hasOpenItems, hasDoneItems],
-    () => {
-      nextTick(() => {
-        const el = bulkMasterCheckboxRef.value;
-        if (!el) return;
-        el.indeterminate = hasOpenItems.value && hasDoneItems.value;
-      });
-    },
-    { deep: true, immediate: true },
+  function closeBulkAllModal() {
+    bulkAllModalOpen.value = false;
+  }
+
+  function onBulkAllModalBackdrop() {
+    if (!bulkAllSubmitting.value) closeBulkAllModal();
+  }
+
+  const bulkAllModalTitle = computed(() =>
+    isAllItemsDone.value
+      ? "Deselezionare tutte le attività?"
+      : "Segnare tutte le attività come completate?",
   );
 
-  function onBulkMasterChange(e: Event) {
-    const el = e.target as HTMLInputElement;
-    void markAllTodoItemsDone(el.checked);
+  async function confirmBulkAll() {
+    if (!currentTodoList.value.length) return;
+    bulkAllSubmitting.value = true;
+    try {
+      await markAllTodoItemsDone(!isAllItemsDone.value);
+      await nextTick();
+      if (!todosError.value) closeBulkAllModal();
+    } finally {
+      bulkAllSubmitting.value = false;
+    }
   }
 
   const listToolbarListActionsDisabled = computed(
@@ -488,6 +500,10 @@
     }
     if (itemRemoveModalOpen.value) {
       if (!itemRemoveSubmitting.value) closeItemRemoveModal();
+      return;
+    }
+    if (bulkAllModalOpen.value) {
+      if (!bulkAllSubmitting.value) closeBulkAllModal();
       return;
     }
     if (itemEditId.value) {
@@ -864,9 +880,8 @@
                   ?
                 </p>
                 <p class="small text-secondary mb-0">
-                  Verranno rimossi dal database anche
-                  <strong>tutte le attività</strong> collegate a questa lista.
-                  L’azione non si può annullare.
+                  La lista e le attività non saranno più visibili qui; i dati
+                  restano nello storico nel database.
                 </p>
               </div>
               <div class="modal-footer">
@@ -890,7 +905,64 @@
                     role="status"
                     aria-hidden="true"
                   />
-                  Elimina definitivamente
+                  Elimina
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </Teleport>
+
+      <Teleport to="body">
+        <div
+          v-if="bulkAllModalOpen"
+          class="modal fade show d-block shopping-modal"
+          tabindex="-1"
+          style="background-color: rgba(0, 0, 0, 0.4)"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="bulk-all-todo-title"
+          @click.self="onBulkAllModalBackdrop"
+        >
+          <div class="modal-dialog modal-dialog-centered shopping-modal-dialog">
+            <div class="modal-content" @click.stop>
+              <div class="modal-header">
+                <h2 id="bulk-all-todo-title" class="modal-title h5">
+                  Tutte le attività
+                </h2>
+                <button
+                  type="button"
+                  class="btn-close"
+                  aria-label="Chiudi"
+                  :disabled="bulkAllSubmitting"
+                  @click="closeBulkAllModal"
+                />
+              </div>
+              <div class="modal-body">
+                <p class="mb-0">{{ bulkAllModalTitle }}</p>
+              </div>
+              <div class="modal-footer">
+                <button
+                  type="button"
+                  class="btn btn-sm btn-secondary"
+                  :disabled="bulkAllSubmitting"
+                  @click="closeBulkAllModal"
+                >
+                  Annulla
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-sm btn-primary"
+                  :disabled="bulkAllSubmitting"
+                  @click="confirmBulkAll"
+                >
+                  <span
+                    v-if="bulkAllSubmitting"
+                    class="spinner-border spinner-border-sm me-2"
+                    role="status"
+                    aria-hidden="true"
+                  />
+                  Conferma
                 </button>
               </div>
             </div>
@@ -1032,26 +1104,18 @@
           >
             {{ hideDoneItems ? "Mostra completate" : "Nascondi completate" }}
           </button>
-          <div
-            class="form-check mb-0 shopping-bulk-master d-flex align-items-center gap-2"
+          <button
+            type="button"
+            class="btn btn-sm btn-outline-secondary touch-manipulation"
+            :disabled="!currentTodoList.length"
+            aria-haspopup="dialog"
+            :aria-expanded="bulkAllModalOpen"
+            aria-label="Apri conferma per segnare o deselezionare tutte le attività"
+            title="Segna tutte / deseleziona tutte (con conferma)"
+            @click="openBulkAllModal"
           >
-            <input
-              id="todo-bulk-master"
-              ref="bulkMasterCheckboxRef"
-              type="checkbox"
-              class="form-check-input shopping-check shopping-bulk-master-check flex-shrink-0"
-              :checked="isAllItemsDone"
-              aria-label="Segna o deseleziona tutte le attività della lista"
-              title="Segna tutte / deseleziona tutte"
-              @change="onBulkMasterChange"
-            />
-            <label
-              class="form-check-label small text-secondary mb-0 user-select-none"
-              for="todo-bulk-master"
-            >
-              Tutti
-            </label>
-          </div>
+            Tutti
+          </button>
         </div>
       </div>
 
@@ -1550,11 +1614,6 @@
     .shopping-swipe-action:active {
       transform: none;
     }
-  }
-
-  .shopping-bulk-master .form-check-label {
-    cursor: pointer;
-    padding-top: 0.05rem;
   }
 
   .shopping-item-edit-input {

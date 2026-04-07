@@ -122,6 +122,7 @@ async function fetchTodoListsFromSupabase(silent: boolean) {
     const { data, error } = await sb
       .from('todo_lists')
       .select('id, created_at, created_by, title')
+      .is('deleted_at', null)
       .order('created_at', { ascending: false })
       .abortSignal(queryAbortSignal())
     if (error) {
@@ -164,6 +165,7 @@ async function fetchTodosFromSupabase(silent: boolean) {
       .from('todo_items')
       .select('id, text, done, added_by, list_id')
       .eq('list_id', lid)
+      .is('deleted_at', null)
       .order('created_at', { ascending: true })
       .abortSignal(queryAbortSignal())
     if (error) {
@@ -290,7 +292,11 @@ export async function renameTodoList(id: string, name: string): Promise<boolean>
   const title = normalizeListTitle(name)
   const sb = getSupabaseClient()
   if (!sb) return false
-  const { error } = await sb.from('todo_lists').update({ title }).eq('id', id)
+  const { error } = await sb
+    .from('todo_lists')
+    .update({ title })
+    .eq('id', id)
+    .is('deleted_at', null)
   if (error) {
     todosError.value = error.message
     return false
@@ -304,12 +310,21 @@ export async function deleteTodoList(id: string) {
   const wasSelected = selectedTodoListId.value === id
   const sb = getSupabaseClient()
   if (!sb) return
-  const { error: delItemsErr } = await sb.from('todo_items').delete().eq('list_id', id)
+  const now = new Date().toISOString()
+  const { error: delItemsErr } = await sb
+    .from('todo_items')
+    .update({ deleted_at: now })
+    .eq('list_id', id)
+    .is('deleted_at', null)
   if (delItemsErr) {
     todosError.value = delItemsErr.message
     return
   }
-  const { error } = await sb.from('todo_lists').delete().eq('id', id)
+  const { error } = await sb
+    .from('todo_lists')
+    .update({ deleted_at: now })
+    .eq('id', id)
+    .is('deleted_at', null)
   if (error) {
     todosError.value = error.message
     return
@@ -365,7 +380,12 @@ export async function setTodoItemDone(id: string, done: boolean) {
     item.done = prev
     return
   }
-  const { error } = await sb.from('todo_items').update({ done }).eq('id', id).eq('list_id', lid)
+  const { error } = await sb
+    .from('todo_items')
+    .update({ done })
+    .eq('id', id)
+    .eq('list_id', lid)
+    .is('deleted_at', null)
   if (error) {
     item.done = prev
     todosError.value = error.message
@@ -388,7 +408,12 @@ export async function updateTodoItemText(id: string, text: string): Promise<bool
   const lid = selectedTodoListId.value
   if (!sb || !lid) return false
   item.text = t
-  const { error } = await sb.from('todo_items').update({ text: t }).eq('id', id).eq('list_id', lid)
+  const { error } = await sb
+    .from('todo_items')
+    .update({ text: t })
+    .eq('id', id)
+    .eq('list_id', lid)
+    .is('deleted_at', null)
   if (error) {
     item.text = prevText
     todosError.value = error.message
@@ -404,7 +429,13 @@ export async function removeTodoItem(id: string) {
   if (!sb || !lid) return
   const prev = todos.value.slice()
   todos.value = todos.value.filter((x) => x.id !== id)
-  const { error } = await sb.from('todo_items').delete().eq('id', id).eq('list_id', lid)
+  const now = new Date().toISOString()
+  const { error } = await sb
+    .from('todo_items')
+    .update({ deleted_at: now })
+    .eq('id', id)
+    .eq('list_id', lid)
+    .is('deleted_at', null)
   if (error) {
     todos.value = prev
     todosError.value = error.message
@@ -420,7 +451,13 @@ export async function clearDoneTodoItems() {
   if (!sb) return
   const prev = todos.value.slice()
   todos.value = todos.value.filter((i) => !i.done)
-  const { error } = await sb.from('todo_items').delete().eq('list_id', lid).eq('done', true)
+  const now = new Date().toISOString()
+  const { error } = await sb
+    .from('todo_items')
+    .update({ deleted_at: now })
+    .eq('list_id', lid)
+    .eq('done', true)
+    .is('deleted_at', null)
   if (error) {
     todos.value = prev
     todosError.value = error.message
@@ -437,7 +474,11 @@ export async function markAllTodoItemsDone(done: boolean) {
     i.done = done
   })
   if (!sb) return
-  const { error } = await sb.from('todo_items').update({ done }).eq('list_id', lid)
+  const { error } = await sb
+    .from('todo_items')
+    .update({ done })
+    .eq('list_id', lid)
+    .is('deleted_at', null)
   if (error) {
     todosError.value = error.message
     await fetchTodosFromSupabase(false)

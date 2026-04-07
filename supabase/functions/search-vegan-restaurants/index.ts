@@ -1,4 +1,4 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient } from "npm:@supabase/supabase-js@2.49.1";
 
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -14,6 +14,12 @@ type BodyIn = {
   latitude?: unknown;
   longitude?: unknown;
   radiusKm?: unknown;
+  /**
+   * Se true:
+   * - solo risultati classificati da Google come vegan/vegetarian (nessun fallback da nome)
+   * - query Places senza le ricerche su cafe
+   */
+  strict?: unknown;
 };
 
 /** Risposta parziale Places API (New). */
@@ -48,6 +54,10 @@ function numField(v: unknown): number | null {
   return null;
 }
 
+function boolField(v: unknown): boolean {
+  return v === true || v === "true" || v === 1 || v === "1";
+}
+
 function displayNameText(p: GPlace): string {
   const d = p.displayName;
   if (typeof d === "string" && d.trim()) return clip(d.trim(), 200);
@@ -69,8 +79,8 @@ function haversineKm(
   const dLon = toRad(lon2 - lon1);
   const a =
     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
 }
@@ -78,17 +88,39 @@ function haversineKm(
 const TYPE_LABELS: Record<string, string> = {
   vegan_restaurant: "Ristorante vegano",
   vegetarian_restaurant: "Ristorante vegetariano",
-  indian_restaurant: "Cucina indiana",
-  italian_restaurant: "Cucina italiana",
-  meal_delivery: "Consegna",
-  meal_takeaway: "Asporto",
   restaurant: "Ristorante",
   cafe: "Bar / caffè",
+  coffee_shop: "Caffetteria",
   bakery: "Panificio",
+  meal_delivery: "Consegna",
+  meal_takeaway: "Asporto",
   food: "Food",
+  pizza_restaurant: "Pizzeria",
+  fast_food_restaurant: "Fast food",
+  indian_restaurant: "Cucina indiana",
+  italian_restaurant: "Cucina italiana",
 };
 
-/** Tipi Google che indicano locale principalmente su carne/pesce: escludiamo salvo nome/tipo vegan. */
+const DISPLAYABLE_TYPES = new Set([
+  "vegan_restaurant",
+  "vegetarian_restaurant",
+  "restaurant",
+  "cafe",
+  "coffee_shop",
+  "bakery",
+  "meal_delivery",
+  "meal_takeaway",
+  "food",
+  "pizza_restaurant",
+  "fast_food_restaurant",
+  "indian_restaurant",
+  "italian_restaurant",
+]);
+
+/**
+ * Tipi Google che suggeriscono un locale principalmente orientato a carne/pesce.
+ * Esclusi salvo classificazione esplicita vegan/vegetarian da Google.
+ */
 const MEAT_OR_FISH_FORWARD_TYPES = new Set([
   "steak_house",
   "barbecue_restaurant",
@@ -100,123 +132,144 @@ const MEAT_OR_FISH_FORWARD_TYPES = new Set([
   "sushi_restaurant",
 ]);
 
+/**
+ * Tipi compatibili con il fallback dal nome: serve un contesto “dove si mangia”.
+ */
+const FOODISH_TYPES = new Set([
+  "restaurant",
+  "cafe",
+  "coffee_shop",
+  "bakery",
+  "meal_takeaway",
+  "meal_delivery",
+  "food",
+  "pizza_restaurant",
+  "fast_food_restaurant",
+]);
+
+function normalizeText(value: string): string {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "");
+}
+
+/**
+ * Segnali chiari plant-based nel nome.
+ * Evita termini rumorosi come "plant" da solo, "flower", "veg" troppo corto.
+ */
 function nameSuggestsPlantBased(name: string): boolean {
-  return /vegan|veggie|veg\b|plant|flower|bio\s*veget|vegetal/i.test(name);
+  const n = normalizeText(name);
+
+  if (/\bplant[-\s]+based\b/.test(n)) return true;
+  if (/\bvegan(?:o|a|i|e)?\b/.test(n)) return true;
+  if (
+    /\bvegetarian\b/.test(n) ||
+    /\bvegetariano\b/.test(n) ||
+    /\bvegetariana\b/.test(n)
+  ) {
+    return true;
+  }
+  if (/\bveggie\b/.test(n)) return true;
+
+  return false;
+}
+
+/**
+ * Nome molto “carne/pesce first”; non si applica se il nome ha già segnali veg forti
+ * (gestito dall’ordine in classifyPlace).
+ */
+function nameSuggestsNonPlantPrimary(name: string): boolean {
+  const n = normalizeText(name);
+  return /\b(burger|steak|grill|bbq|barbecue|sushi|kebab|pollo|chicken|fish|seafood|meat)\b/.test(
+    n,
+  );
+}
+
+function hasFoodishType(types: string[] | undefined): boolean {
+  return (types ?? []).some((t) => FOODISH_TYPES.has(t));
 }
 
 type ClassifyResult = {
   exclude: boolean;
-  /** Ordinamento: più basso = più in alto (prima 100% vegan). */
+  /**
+   * 0 = vegan Google
+   * 1 = vegetarian Google
+   * 2 = fallback nome + tipo food-related
+   * 99 = escluso
+   */
   sortTier: number;
-  /** Etichetta breve per UI. */
   categoryLabel: string;
 };
 
 /**
- * Ordine richiesto: (1) 100% vegan, (2) vegetariano / opzioni vegane chiare,
- * (3) bar e caffè con possibili opzioni, (4) altro compatibile; esclusi i tipi “carne-first”.
+ * Regole restrittive:
+ * - Includi se Google indica vegan_restaurant o vegetarian_restaurant (prima dei filtri carne sul tipo).
+ * - Escludi tipi carne/pesce-first senza classificazione vegan/veg Google.
+ * - Fallback nome solo se segnali plant-based chiari E tipi food-compatibili (prima del filtro nome “carne”).
+ * - Altrimenti escludi nomi che sembrano chiaramente non plant-first.
  */
 function classifyPlace(types: string[] | undefined, name: string): ClassifyResult {
   const t = new Set(types ?? []);
-  const plantName = nameSuggestsPlantBased(name);
+  const hasVegan = t.has("vegan_restaurant");
+  const hasVegetarian = t.has("vegetarian_restaurant");
 
-  if (
-    [...MEAT_OR_FISH_FORWARD_TYPES].some((x) => t.has(x)) &&
-    !t.has("vegan_restaurant") &&
-    !plantName
-  ) {
+  const meatFishForward = [...MEAT_OR_FISH_FORWARD_TYPES].some((x) => t.has(x));
+  if (meatFishForward && !hasVegan && !hasVegetarian) {
     return { exclude: true, sortTier: 99, categoryLabel: "" };
   }
 
-  if (t.has("vegan_restaurant")) {
+  if (hasVegan) {
     return { exclude: false, sortTier: 0, categoryLabel: "100% vegano" };
   }
 
-  if (t.has("vegetarian_restaurant")) {
-    return {
-      exclude: false,
-      sortTier: 1,
-      categoryLabel: "Vegetariano · molte opzioni vegane",
-    };
+  if (hasVegetarian) {
+    return { exclude: false, sortTier: 1, categoryLabel: "Vegetariano" };
   }
 
-  const ethnicPlantFriendly = [
-    "indian_restaurant",
-    "middle_eastern_restaurant",
-    "thai_restaurant",
-    "ethiopian_restaurant",
-    "vietnamese_restaurant",
-    "mediterranean_restaurant",
-    "greek_restaurant",
-    "lebanese_restaurant",
-    "japanese_restaurant",
-    "korean_restaurant",
-    "mexican_restaurant",
-  ];
-  if (ethnicPlantFriendly.some((x) => t.has(x))) {
+  if (nameSuggestsPlantBased(name) && hasFoodishType(types)) {
     return {
       exclude: false,
       sortTier: 2,
-      categoryLabel: "Spesso molte opzioni vegane (cucina etnica)",
+      categoryLabel: "Segnali da nome (verifica su Maps)",
     };
   }
 
-  if (t.has("cafe") || t.has("coffee_shop") || t.has("bar") || t.has("bakery")) {
-    return {
-      exclude: false,
-      sortTier: 3,
-      categoryLabel: "Bar / caffè · verifica opzioni vegane",
-    };
+  if (nameSuggestsNonPlantPrimary(name)) {
+    return { exclude: true, sortTier: 99, categoryLabel: "" };
   }
 
-  if (
-    t.has("pizza_restaurant") ||
-    t.has("fast_food_restaurant") ||
-    t.has("meal_takeaway") ||
-    t.has("italian_restaurant")
-  ) {
-    return {
-      exclude: false,
-      sortTier: 4,
-      categoryLabel: "Controlla menu / opzioni vegane",
-    };
-  }
-
-  if (t.has("restaurant") || t.has("food")) {
-    return {
-      exclude: false,
-      sortTier: 5,
-      categoryLabel: "Ristorante · verifica opzioni vegane",
-    };
-  }
-
-  return {
-    exclude: false,
-    sortTier: 6,
-    categoryLabel: "Scheda Google Maps · verifica opzioni vegane",
-  };
+  return { exclude: true, sortTier: 99, categoryLabel: "" };
 }
 
 function typesToShortNote(types: string[] | undefined): string {
   if (!types?.length) return "";
   const labels = types
-    .filter((t) => t !== "point_of_interest" && t !== "establishment")
+    .filter((x) =>
+      x !== "point_of_interest" &&
+      x !== "establishment" &&
+      DISPLAYABLE_TYPES.has(x)
+    )
     .slice(0, 4)
     .map((x) => TYPE_LABELS[x] ?? x.replace(/_/g, " "));
   return clip(labels.join(" · "), 400);
 }
 
-/** Query mirate su vegano/vegetariano; niente “indian restaurant” da solo (troppi risultati carnivori). */
-const TEXT_QUERIES = [
+/** Query strette; in default si aggiungono cafe per coprire caffetterie veg (non in strict). */
+const TEXT_QUERIES_DEFAULT = [
   "vegan restaurant",
   "ristorante vegano",
-  "vegan bar",
-  "bar vegano caffè",
   "vegetarian restaurant",
   "ristorante vegetariano",
-  "cucina vegana",
-  "opzioni vegane ristorante",
-  "vegan food",
+  "vegan cafe",
+  "caffetteria vegana",
+] as const;
+
+const TEXT_QUERIES_STRICT = [
+  "vegan restaurant",
+  "ristorante vegano",
+  "vegetarian restaurant",
+  "ristorante vegetariano",
 ] as const;
 
 const FIELD_MASK =
@@ -252,14 +305,29 @@ async function searchTextOnce(
   });
 
   if (!res.ok) {
-    const t = await res.text();
-    console.error("Places searchText error", textQuery, res.status, t);
+    const errText = await res.text();
+    console.error("Places searchText error", textQuery, res.status, errText);
     return [];
   }
 
   const data = (await res.json()) as { places?: GPlace[] };
   return Array.isArray(data.places) ? data.places : [];
 }
+
+type Enriched = {
+  placeId: string;
+  name: string;
+  address: string;
+  mapsUrl: string;
+  notes: string;
+  categoryLabel: string;
+  sortTier: number;
+  latitude: number | null;
+  longitude: number | null;
+  rating: number | null;
+  userRatingCount: number | null;
+  distanceKm: number;
+};
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -304,6 +372,7 @@ Deno.serve(async (req) => {
   const lat = numField(body.latitude);
   const lng = numField(body.longitude);
   const radiusKm = numField(body.radiusKm);
+  const strict = boolField(body.strict);
 
   if (lat == null || lng == null || radiusKm == null) {
     return jsonResponse(
@@ -347,8 +416,10 @@ Deno.serve(async (req) => {
 
   const radiusM = Math.min(radiusKm * 1000, 50_000);
 
+  const textQueries = strict ? TEXT_QUERIES_STRICT : TEXT_QUERIES_DEFAULT;
+
   const batch = await Promise.all(
-    TEXT_QUERIES.map((q) => searchTextOnce(placesKey, q, lat, lng, radiusM)),
+    textQueries.map((q) => searchTextOnce(placesKey, q, lat, lng, radiusM)),
   );
 
   const byId = new Map<string, GPlace>();
@@ -359,21 +430,6 @@ Deno.serve(async (req) => {
       if (!byId.has(id)) byId.set(id, p);
     }
   }
-
-  type Enriched = {
-    placeId: string;
-    name: string;
-    address: string;
-    mapsUrl: string;
-    notes: string;
-    categoryLabel: string;
-    sortTier: number;
-    latitude: number | null;
-    longitude: number | null;
-    rating: number | null;
-    userRatingCount: number | null;
-    distanceKm: number;
-  };
 
   const enriched: Enriched[] = [];
 
@@ -394,6 +450,10 @@ Deno.serve(async (req) => {
     const name = displayNameText(p);
     const { exclude, sortTier, categoryLabel } = classifyPlace(p.types, name);
     if (exclude) continue;
+
+    if (strict && sortTier > 1) {
+      continue;
+    }
 
     const address = clip((p.formattedAddress ?? "").trim(), 400);
     const rating =
@@ -424,13 +484,18 @@ Deno.serve(async (req) => {
     });
   }
 
-  /** Elenco: (1) dal più vicino al più lontano, (2) a parità di distanza rating Google più alto prima, (3) spareggio tipo locale (vegano prima). */
+  /**
+   * Ordine: sortTier → rating ↓ → distanza ↑ → recensioni ↓
+   */
   enriched.sort((a, b) => {
-    if (a.distanceKm !== b.distanceKm) return a.distanceKm - b.distanceKm;
+    if (a.sortTier !== b.sortTier) return a.sortTier - b.sortTier;
     const ra = a.rating ?? -1;
     const rb = b.rating ?? -1;
     if (rb !== ra) return rb - ra;
-    return a.sortTier - b.sortTier;
+    if (a.distanceKm !== b.distanceKm) return a.distanceKm - b.distanceKm;
+    const ca = a.userRatingCount ?? 0;
+    const cb = b.userRatingCount ?? 0;
+    return cb - ca;
   });
 
   const restaurants = enriched.slice(0, 35).map((r) => ({
@@ -449,9 +514,12 @@ Deno.serve(async (req) => {
 
   const modelNote =
     restaurants.length === 0
-      ? "Nessun locale trovato nel raggio con le ricerche attuali. Prova ad aumentare i chilometri o verifica in Google Cloud che sia abilitata la «Places API (New)» per questa chiave."
-      : "Risultati da Google Places, ordinati per distanza (dal più vicino), poi per valutazione stelle a parità di distanza. Le etichette tipo «100% vegano» sono informative; i tipi principalmente a base carne sono esclusi. " +
-        "Orari e menu: verifica sempre su Maps.";
+      ? strict
+        ? "Nessun locale trovato nel raggio con la modalità strict. Prova ad aumentare i chilometri o disattivare strict per includere anche i fallback dal nome e le query su cafe."
+        : "Nessun locale trovato nel raggio con i criteri attuali. Prova ad aumentare i chilometri."
+      : strict
+      ? "Modalità strict: solo locali classificati da Google come vegan o vegetariano (nessun fallback da nome). Ordine: vegan → vegetariano, poi stelle, distanza e numero recensioni. Orari e menu: verifica sempre su Maps."
+      : "Filtro restrittivo: priorità ai locali classificati da Google come vegan o vegetariano; fallback solo se il nome ha segnali plant-based chiari e il tipo è compatibile (food). Tipi carne/pesce-first esclusi senza vegan/veg Google. Ordine: tipo, stelle, distanza, recensioni. Orari e menu: verifica sempre su Maps.";
 
   return jsonResponse({
     restaurants,

@@ -376,6 +376,7 @@ async function fetchGroceryListsFromSupabase(silent: boolean) {
     const { data, error } = await sb
       .from('grocery_lists')
       .select('id, created_at, created_by, title')
+      .is('deleted_at', null)
       .order('created_at', { ascending: false })
       .abortSignal(queryAbortSignal())
     if (error) {
@@ -418,6 +419,7 @@ async function fetchGroceriesFromSupabase(silent: boolean) {
       .from('grocery_items')
       .select('id, text, done, added_by, list_id')
       .eq('list_id', lid)
+      .is('deleted_at', null)
       .order('created_at', { ascending: true })
       .abortSignal(queryAbortSignal())
     if (error) {
@@ -1446,7 +1448,11 @@ export async function renameGroceryList(id: string, name: string): Promise<boole
     persistLocalV2()
     return true
   }
-  const { error } = await sb.from('grocery_lists').update({ title }).eq('id', id)
+  const { error } = await sb
+    .from('grocery_lists')
+    .update({ title })
+    .eq('id', id)
+    .is('deleted_at', null)
   if (error) {
     groceriesError.value = error.message
     return false
@@ -1474,12 +1480,21 @@ export async function deleteGroceryList(id: string) {
     persistLocalV2()
     return
   }
-  const { error: delItemsErr } = await sb.from('grocery_items').delete().eq('list_id', id)
+  const now = new Date().toISOString()
+  const { error: delItemsErr } = await sb
+    .from('grocery_items')
+    .update({ deleted_at: now })
+    .eq('list_id', id)
+    .is('deleted_at', null)
   if (delItemsErr) {
     groceriesError.value = delItemsErr.message
     return
   }
-  const { error } = await sb.from('grocery_lists').delete().eq('id', id)
+  const { error } = await sb
+    .from('grocery_lists')
+    .update({ deleted_at: now })
+    .eq('id', id)
+    .is('deleted_at', null)
   if (error) {
     groceriesError.value = error.message
     return
@@ -1503,7 +1518,11 @@ export async function markAllGroceryItemsDone(done: boolean) {
     syncLocalGroceriesToMap()
     return
   }
-  const { error } = await sb.from('grocery_items').update({ done }).eq('list_id', lid)
+  const { error } = await sb
+    .from('grocery_items')
+    .update({ done })
+    .eq('list_id', lid)
+    .is('deleted_at', null)
   if (error) {
     groceriesError.value = error.message
     await fetchGroceriesFromSupabase(false)
@@ -1612,6 +1631,7 @@ export function useAppStorage() {
       .update({ done })
       .eq('id', id)
       .eq('list_id', lid)
+      .is('deleted_at', null)
     if (error) {
       item.done = prev
       groceriesError.value = error.message
@@ -1648,6 +1668,7 @@ export function useAppStorage() {
       .update({ text: t })
       .eq('id', id)
       .eq('list_id', lid)
+      .is('deleted_at', null)
     if (error) {
       item.text = prevText
       groceriesError.value = error.message
@@ -1668,7 +1689,8 @@ export function useAppStorage() {
     const lid = selectedGroceryListId.value
     const prev = groceries.value.slice()
     groceries.value = groceries.value.filter((x) => x.id !== id)
-    let q = sb.from('grocery_items').delete().eq('id', id)
+    const now = new Date().toISOString()
+    let q = sb.from('grocery_items').update({ deleted_at: now }).eq('id', id).is('deleted_at', null)
     if (lid) q = q.eq('list_id', lid)
     const { error } = await q
     if (error) {
@@ -1690,7 +1712,13 @@ export function useAppStorage() {
     }
     const prev = groceries.value.slice()
     groceries.value = groceries.value.filter((i) => !i.done)
-    const { error } = await sb.from('grocery_items').delete().eq('list_id', lid).eq('done', true)
+    const now = new Date().toISOString()
+    const { error } = await sb
+      .from('grocery_items')
+      .update({ deleted_at: now })
+      .eq('list_id', lid)
+      .eq('done', true)
+      .is('deleted_at', null)
     if (error) {
       groceries.value = prev
       groceriesError.value = error.message

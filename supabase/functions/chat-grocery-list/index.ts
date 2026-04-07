@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient } from "npm:@supabase/supabase-js@2.49.1";
 
 const corsHeaders: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
@@ -382,7 +382,10 @@ La risposta deve rispettare lo schema JSON richiesto (nessun markdown).`
 
   const { error: insErr } = await adminDb.from('grocery_items').insert(inserts)
   if (insErr) {
-    await adminDb.from('grocery_lists').delete().eq('id', listId)
+    await adminDb
+      .from('grocery_lists')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('id', listId)
     return jsonResponse({ error: insErr.message }, 500)
   }
 

@@ -649,6 +649,44 @@ html[data-theme='sunflower-blackcat'] .wish-swipe-track .shopping-swipe-front.bg
   background-color: var(--theme-surface-2) !important;
 }
 
+/*
+ * Spesa / Todo (layout .shopping-main): su iOS WebKit il font-smoothing antialiased
+ * globale (base.css) rende il testo visivamente più chiaro/sottile sul marrone; su Android
+ * Chrome il contrasto risulta migliore. Allineiamo leggibilità senza cambiare il tema altrove.
+ */
+@supports (-webkit-touch-callout: none) {
+  html[data-theme='sunflower-blackcat'] .shopping-main {
+    -webkit-font-smoothing: auto;
+    -moz-osx-font-smoothing: auto;
+  }
+
+  html[data-theme='sunflower-blackcat']
+    .shopping-main
+    .shopping-items-list
+    .item-text:not(.text-decoration-line-through) {
+    font-weight: 500;
+    color: var(--theme-text-primary);
+  }
+
+  html[data-theme='sunflower-blackcat'] .shopping-main .shopping-marker-hint {
+    opacity: 1 !important;
+    color: var(--theme-text-muted);
+  }
+
+  html[data-theme='sunflower-blackcat'] .shopping-main .shopping-list-heading .fw-semibold.text-secondary {
+    color: var(--theme-text-secondary) !important;
+    font-weight: 600;
+  }
+
+  html[data-theme='sunflower-blackcat'] .shopping-main .shopping-user-chip {
+    color: var(--theme-text-secondary);
+  }
+
+  html[data-theme='sunflower-blackcat'] .shopping-main p.text-secondary {
+    color: var(--theme-text-secondary) !important;
+  }
+}
+
 /* Transizioni tema */
 html[data-theme='sunflower-blackcat'] body,
 html[data-theme='sunflower-blackcat'] .app-shell,

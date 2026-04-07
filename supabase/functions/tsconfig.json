@@ -8,7 +8,10 @@
     "strict": true,
     "skipLibCheck": true,
     "paths": {
-      "@supabase/supabase-js": ["../../node_modules/@supabase/supabase-js"]
+      "@supabase/supabase-js": ["../../node_modules/@supabase/supabase-js"],
+      "npm:@supabase/supabase-js@2.49.1": [
+        "../../node_modules/@supabase/supabase-js"
+      ]
     }
   },
   "include": ["./**/*.ts", "./deno-ambient.d.ts"]

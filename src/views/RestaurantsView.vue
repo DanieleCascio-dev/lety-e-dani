@@ -54,6 +54,8 @@ let acTimer: ReturnType<typeof setTimeout> | null = null
 let blurTimer: ReturnType<typeof setTimeout> | null = null
 
 const radiusKm = ref(10)
+/** Solo classificazione Google vegan/vegetarian (nessun fallback da nome). */
+const searchStrictMode = ref(false)
 const userPos = ref<{ lat: number; lng: number } | null>(null)
 const geoMessage = ref<string | null>(null)
 
@@ -779,7 +781,7 @@ async function runSearch() {
     }
     const r = Math.min(50, Math.max(1, Math.round(radiusKm.value)))
     radiusKm.value = r
-    await search(lat, lng, r)
+    await search(lat, lng, r, { strict: searchStrictMode.value })
   } finally {
     searchRunBusy.value = false
   }
@@ -1271,6 +1273,20 @@ onUnmounted(() => {
               step="1"
               aria-label="Raggio ricerca in chilometri"
             />
+          </div>
+
+          <div class="form-check form-switch mb-2">
+            <input
+              id="rest-search-strict"
+              v-model="searchStrictMode"
+              class="form-check-input"
+              type="checkbox"
+              role="switch"
+              aria-describedby="rest-search-strict-hint"
+            />
+            <label class="form-check-label small" for="rest-search-strict">
+              Solo risultati accurati (vegan/vegetariano su Google)
+            </label>
           </div>
 
           <div
