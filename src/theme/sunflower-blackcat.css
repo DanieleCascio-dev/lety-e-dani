@@ -29,7 +29,7 @@
  * Pattern shell: /sunflower_cat_pattern.png (tile), blend soft sul marrone shell.
  */
 
-html[data-theme='sunflower-blackcat'] {
+html[data-theme="sunflower-blackcat"] {
   color-scheme: dark;
 
   /* ─── Token progetto ─── */
@@ -66,7 +66,7 @@ html[data-theme='sunflower-blackcat'] {
   --theme-app-shell-bg: #2d2621;
 
   /* Tile PNG in public/ — regola `background-size` se il repeat non coincide col seamless */
-  --theme-shell-pattern-url: url('/sunflower_cat_pattern.png');
+  --theme-shell-pattern-url: url("/sunflower_cat_pattern.png");
   --theme-shell-pattern-size: auto;
 
   /* ─── Bootstrap mapping ─── */
@@ -231,16 +231,16 @@ html[data-theme='sunflower-blackcat'] {
   --bs-offcanvas-border-color: var(--theme-border);
 }
 
-html[data-theme='sunflower-blackcat'] body {
+html[data-theme="sunflower-blackcat"] body {
   background-color: var(--bs-body-bg);
   color: var(--bs-body-color);
 }
 
-html[data-theme='sunflower-blackcat'] #app {
+html[data-theme="sunflower-blackcat"] #app {
   color: var(--bs-body-color);
 }
 
-html[data-theme='sunflower-blackcat'] ::selection {
+html[data-theme="sunflower-blackcat"] ::selection {
   background: rgba(212, 184, 140, 0.32);
   color: var(--theme-text-on-primary);
 }
@@ -249,7 +249,7 @@ html[data-theme='sunflower-blackcat'] ::selection {
  * Shell: base marrone + pattern acquerello (PNG chiaro).
  * soft-light fonde il tile sul fondo scuro senza strappare il contrasto UI.
  */
-html[data-theme='sunflower-blackcat'] .app-shell {
+html[data-theme="sunflower-blackcat"] .app-shell {
   background-color: var(--theme-app-shell-bg) !important;
   background-image: var(--theme-shell-pattern-url) !important;
   background-repeat: repeat !important;
@@ -265,30 +265,30 @@ html[data-theme='sunflower-blackcat'] .app-shell {
  * `overlay` mantiene pattern + tinta ma allinea la luminanza a quanto ci si aspetta da soft-light altrove.
  */
 @supports (-webkit-touch-callout: none) {
-  html[data-theme='sunflower-blackcat'] .app-shell {
+  html[data-theme="sunflower-blackcat"] .app-shell {
     background-blend-mode: overlay;
   }
 }
 
-html[data-theme='sunflower-blackcat'] .app-top-nav {
+html[data-theme="sunflower-blackcat"] .app-top-nav {
   background-color: var(--theme-nav-bg) !important;
   border-bottom: 1px solid var(--theme-border-soft) !important;
   box-shadow: var(--theme-shadow-inset-warm);
 }
 
 /* Card: separazione dallo shell (ombra + bordo) */
-html[data-theme='sunflower-blackcat'] .card {
+html[data-theme="sunflower-blackcat"] .card {
   background-color: var(--theme-surface-1);
   border: 1px solid var(--theme-border-soft);
   box-shadow: var(--theme-shadow-sm);
 }
 
-html[data-theme='sunflower-blackcat'] .card.border-0 {
+html[data-theme="sunflower-blackcat"] .card.border-0 {
   border: 1px solid var(--theme-border-soft) !important;
 }
 
 /* Primary CTA */
-html[data-theme='sunflower-blackcat'] .btn-primary {
+html[data-theme="sunflower-blackcat"] .btn-primary {
   --bs-btn-color: var(--theme-text-on-primary);
   --bs-btn-bg: var(--theme-color-primary);
   --bs-btn-border-color: rgba(42, 34, 28, 0.15);
@@ -303,7 +303,7 @@ html[data-theme='sunflower-blackcat'] .btn-primary {
   --bs-btn-disabled-border-color: transparent;
 }
 
-html[data-theme='sunflower-blackcat'] .btn-secondary {
+html[data-theme="sunflower-blackcat"] .btn-secondary {
   --bs-btn-color: var(--theme-text-primary);
   --bs-btn-bg: var(--theme-surface-2);
   --bs-btn-border-color: var(--theme-border);
@@ -314,7 +314,7 @@ html[data-theme='sunflower-blackcat'] .btn-secondary {
   --bs-btn-active-border-color: #6a6058;
 }
 
-html[data-theme='sunflower-blackcat'] .btn-outline-primary {
+html[data-theme="sunflower-blackcat"] .btn-outline-primary {
   --bs-btn-color: var(--theme-color-primary-soft);
   --bs-btn-border-color: rgba(212, 184, 140, 0.45);
   --bs-btn-hover-color: var(--theme-text-on-primary);
@@ -322,7 +322,7 @@ html[data-theme='sunflower-blackcat'] .btn-outline-primary {
   --bs-btn-hover-border-color: var(--theme-color-primary);
 }
 
-html[data-theme='sunflower-blackcat'] .btn-outline-secondary {
+html[data-theme="sunflower-blackcat"] .btn-outline-secondary {
   --bs-btn-color: var(--theme-text-secondary);
   --bs-btn-border-color: var(--theme-border);
   --bs-btn-hover-color: var(--theme-text-primary);
@@ -330,7 +330,7 @@ html[data-theme='sunflower-blackcat'] .btn-outline-secondary {
   --bs-btn-hover-border-color: #5c534c;
 }
 
-html[data-theme='sunflower-blackcat'] .btn-outline-danger {
+html[data-theme="sunflower-blackcat"] .btn-outline-danger {
   --bs-btn-color: #d4a89e;
   --bs-btn-border-color: rgba(201, 148, 136, 0.45);
   --bs-btn-hover-color: #2a221c;
@@ -338,12 +338,12 @@ html[data-theme='sunflower-blackcat'] .btn-outline-danger {
   --bs-btn-hover-border-color: var(--theme-danger);
 }
 
-html[data-theme='sunflower-blackcat'] .btn-ghost,
-html[data-theme='sunflower-blackcat'] .btn-link {
+html[data-theme="sunflower-blackcat"] .btn-ghost,
+html[data-theme="sunflower-blackcat"] .btn-link {
   --bs-btn-color: var(--theme-color-primary-soft);
 }
 
-html[data-theme='sunflower-blackcat'] .btn-danger {
+html[data-theme="sunflower-blackcat"] .btn-danger {
   --bs-btn-color: #2a221c;
   --bs-btn-bg: var(--theme-danger);
   --bs-btn-border-color: rgba(42, 34, 28, 0.12);
@@ -351,7 +351,7 @@ html[data-theme='sunflower-blackcat'] .btn-danger {
   --bs-btn-hover-border-color: rgba(42, 34, 28, 0.1);
 }
 
-html[data-theme='sunflower-blackcat'] .btn-success {
+html[data-theme="sunflower-blackcat"] .btn-success {
   --bs-btn-color: #2a221c;
   --bs-btn-bg: var(--theme-success);
   --bs-btn-border-color: rgba(42, 34, 28, 0.1);
@@ -359,121 +359,123 @@ html[data-theme='sunflower-blackcat'] .btn-success {
   --bs-btn-hover-border-color: rgba(42, 34, 28, 0.08);
 }
 
-html[data-theme='sunflower-blackcat'] .btn-close {
+html[data-theme="sunflower-blackcat"] .btn-close {
   filter: invert(1) grayscale(100%) brightness(1.15);
   opacity: 0.65;
 }
 
-html[data-theme='sunflower-blackcat'] .btn-close:hover {
+html[data-theme="sunflower-blackcat"] .btn-close:hover {
   opacity: 0.95;
 }
 
 /* Alert pastello */
-html[data-theme='sunflower-blackcat'] .alert-primary {
+html[data-theme="sunflower-blackcat"] .alert-primary {
   --bs-alert-color: #e8dcc8;
   --bs-alert-bg: rgba(212, 184, 140, 0.12);
   --bs-alert-border-color: rgba(212, 184, 140, 0.22);
 }
 
-html[data-theme='sunflower-blackcat'] .alert-success {
+html[data-theme="sunflower-blackcat"] .alert-success {
   --bs-alert-color: #d0e0cb;
   --bs-alert-bg: rgba(138, 168, 130, 0.14);
   --bs-alert-border-color: rgba(138, 168, 130, 0.26);
 }
 
-html[data-theme='sunflower-blackcat'] .alert-danger {
+html[data-theme="sunflower-blackcat"] .alert-danger {
   --bs-alert-color: #e8d0ca;
   --bs-alert-bg: rgba(201, 148, 136, 0.12);
   --bs-alert-border-color: rgba(201, 148, 136, 0.24);
 }
 
-html[data-theme='sunflower-blackcat'] .alert-warning {
+html[data-theme="sunflower-blackcat"] .alert-warning {
   --bs-alert-color: #e8d8c4;
   --bs-alert-bg: rgba(207, 168, 114, 0.12);
   --bs-alert-border-color: rgba(207, 168, 114, 0.24);
 }
 
-html[data-theme='sunflower-blackcat'] .alert-info {
+html[data-theme="sunflower-blackcat"] .alert-info {
   --bs-alert-color: #d2e0e6;
   --bs-alert-bg: rgba(143, 168, 176, 0.12);
   --bs-alert-border-color: rgba(143, 168, 176, 0.24);
 }
 
 /* Badge soft (tutte le varianti comuni) */
-html[data-theme='sunflower-blackcat'] .badge.text-bg-primary {
+html[data-theme="sunflower-blackcat"] .badge.text-bg-primary {
   background-color: rgba(212, 184, 140, 0.85) !important;
   color: var(--theme-text-on-primary) !important;
   font-weight: 600;
 }
 
-html[data-theme='sunflower-blackcat'] .badge.text-bg-secondary {
+html[data-theme="sunflower-blackcat"] .badge.text-bg-secondary {
   background-color: var(--theme-surface-3) !important;
   color: var(--theme-text-secondary) !important;
 }
 
-html[data-theme='sunflower-blackcat'] .badge.text-bg-success {
+html[data-theme="sunflower-blackcat"] .badge.text-bg-success {
   background-color: rgba(138, 168, 130, 0.55) !important;
   color: #eef4ec !important;
 }
 
-html[data-theme='sunflower-blackcat'] .badge.text-bg-danger {
+html[data-theme="sunflower-blackcat"] .badge.text-bg-danger {
   background-color: rgba(201, 148, 136, 0.5) !important;
   color: #faf3f1 !important;
 }
 
-html[data-theme='sunflower-blackcat'] .badge.text-bg-warning {
+html[data-theme="sunflower-blackcat"] .badge.text-bg-warning {
   background-color: rgba(207, 168, 114, 0.45) !important;
   color: #2a221c !important;
 }
 
-html[data-theme='sunflower-blackcat'] .badge.text-bg-info {
+html[data-theme="sunflower-blackcat"] .badge.text-bg-info {
   background-color: rgba(143, 168, 176, 0.45) !important;
   color: #f2f7f8 !important;
 }
 
-html[data-theme='sunflower-blackcat'] .badge.text-bg-light {
+html[data-theme="sunflower-blackcat"] .badge.text-bg-light {
   background-color: var(--theme-surface-3) !important;
   color: var(--theme-text-primary) !important;
 }
 
-html[data-theme='sunflower-blackcat'] .badge.text-bg-dark {
+html[data-theme="sunflower-blackcat"] .badge.text-bg-dark {
   background-color: var(--theme-surface-1) !important;
   color: var(--theme-text-secondary) !important;
 }
 
 /* Modal backdrop: marrone caldo, non nero puro */
-html[data-theme='sunflower-blackcat'] .modal-backdrop {
+html[data-theme="sunflower-blackcat"] .modal-backdrop {
   --bs-backdrop-bg: #242019;
   --bs-backdrop-opacity: 0.78;
 }
 
 /* Form */
-html[data-theme='sunflower-blackcat'] .form-control {
+html[data-theme="sunflower-blackcat"] .form-control {
   background-color: var(--theme-surface-2);
   border-color: var(--theme-border);
   color: var(--theme-text-primary);
   box-shadow: var(--theme-shadow-inset-warm);
 }
 
-html[data-theme='sunflower-blackcat'] .form-control:focus {
+html[data-theme="sunflower-blackcat"] .form-control:focus {
   background-color: var(--theme-surface-2);
   border-color: rgba(212, 184, 140, 0.45);
   color: var(--theme-text-primary);
-  box-shadow: var(--theme-shadow-inset-warm), 0 0 0 0.2rem var(--theme-focus-ring);
+  box-shadow:
+    var(--theme-shadow-inset-warm),
+    0 0 0 0.2rem var(--theme-focus-ring);
 }
 
-html[data-theme='sunflower-blackcat'] .form-control::placeholder {
+html[data-theme="sunflower-blackcat"] .form-control::placeholder {
   color: var(--theme-text-muted);
 }
 
-html[data-theme='sunflower-blackcat'] .form-control:disabled,
-html[data-theme='sunflower-blackcat'] .form-select:disabled {
+html[data-theme="sunflower-blackcat"] .form-control:disabled,
+html[data-theme="sunflower-blackcat"] .form-select:disabled {
   background-color: var(--theme-surface-1);
   color: var(--theme-text-muted);
   opacity: 0.88;
 }
 
-html[data-theme='sunflower-blackcat'] .form-select {
+html[data-theme="sunflower-blackcat"] .form-select {
   background-color: var(--theme-surface-2);
   border-color: var(--theme-border);
   color: var(--theme-text-primary);
@@ -481,46 +483,48 @@ html[data-theme='sunflower-blackcat'] .form-select {
   --bs-form-select-bg-img: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23f4efe8' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
 }
 
-html[data-theme='sunflower-blackcat'] .form-select:focus {
+html[data-theme="sunflower-blackcat"] .form-select:focus {
   border-color: rgba(212, 184, 140, 0.45);
-  box-shadow: var(--theme-shadow-inset-warm), 0 0 0 0.2rem var(--theme-focus-ring);
+  box-shadow:
+    var(--theme-shadow-inset-warm),
+    0 0 0 0.2rem var(--theme-focus-ring);
 }
 
-html[data-theme='sunflower-blackcat'] .input-group-text {
+html[data-theme="sunflower-blackcat"] .input-group-text {
   background-color: var(--theme-surface-3);
   border-color: var(--theme-border);
   color: var(--theme-text-secondary);
 }
 
-html[data-theme='sunflower-blackcat'] .form-check-input {
+html[data-theme="sunflower-blackcat"] .form-check-input {
   background-color: var(--theme-surface-2);
   border-color: #6d635a;
 }
 
-html[data-theme='sunflower-blackcat'] .form-check-input:checked {
+html[data-theme="sunflower-blackcat"] .form-check-input:checked {
   background-color: var(--theme-color-primary);
   border-color: rgba(42, 34, 28, 0.2);
 }
 
-html[data-theme='sunflower-blackcat'] .form-check-input:focus {
+html[data-theme="sunflower-blackcat"] .form-check-input:focus {
   border-color: var(--theme-color-primary);
   box-shadow: 0 0 0 0.2rem var(--theme-focus-ring);
 }
 
-html[data-theme='sunflower-blackcat'] .form-switch .form-check-input {
+html[data-theme="sunflower-blackcat"] .form-switch .form-check-input {
   --bs-form-switch-bg: #5c534c;
 }
 
-html[data-theme='sunflower-blackcat'] .form-switch .form-check-input:checked {
+html[data-theme="sunflower-blackcat"] .form-switch .form-check-input:checked {
   --bs-form-switch-bg: var(--theme-color-primary);
 }
 
-html[data-theme='sunflower-blackcat'] .form-control-color {
+html[data-theme="sunflower-blackcat"] .form-control-color {
   border-color: var(--theme-border);
 }
 
 /* Tabelle */
-html[data-theme='sunflower-blackcat'] .table {
+html[data-theme="sunflower-blackcat"] .table {
   --bs-table-color: var(--theme-text-primary);
   --bs-table-bg: var(--theme-surface-1);
   --bs-table-border-color: var(--theme-border);
@@ -530,40 +534,42 @@ html[data-theme='sunflower-blackcat'] .table {
 }
 
 /* Nav pills (Home / filtri / CTA secondari) */
-html[data-theme='sunflower-blackcat'] .nav-pills .nav-link {
+html[data-theme="sunflower-blackcat"] .nav-pills .nav-link {
   color: var(--theme-text-secondary);
 }
 
-html[data-theme='sunflower-blackcat'] .nav-pills .nav-link:hover {
+html[data-theme="sunflower-blackcat"] .nav-pills .nav-link:hover {
   color: var(--theme-text-primary);
   background-color: rgba(244, 239, 232, 0.06);
 }
 
-html[data-theme='sunflower-blackcat'] .nav-pills .nav-link.active,
-html[data-theme='sunflower-blackcat'] .nav-pills .show > .nav-link {
+html[data-theme="sunflower-blackcat"] .nav-pills .nav-link.active,
+html[data-theme="sunflower-blackcat"] .nav-pills .show > .nav-link {
   color: var(--theme-text-on-primary);
   background-color: var(--theme-color-primary);
 }
 
 /* Sottonav app (icon link) — accento più morbido */
-html[data-theme='sunflower-blackcat'] .app-subnav-item.app-subnav-item--active,
-html[data-theme='sunflower-blackcat'] .app-subnav-item.router-link-active {
+html[data-theme="sunflower-blackcat"] .app-subnav-item.app-subnav-item--active,
+html[data-theme="sunflower-blackcat"] .app-subnav-item.router-link-active {
   color: var(--theme-color-primary-soft);
   background-color: rgba(212, 184, 140, 0.12);
 }
 
-html[data-theme='sunflower-blackcat'] .app-subnav-item.app-subnav-item--active:hover,
-html[data-theme='sunflower-blackcat'] .app-subnav-item.router-link-active:hover {
+html[data-theme="sunflower-blackcat"]
+  .app-subnav-item.app-subnav-item--active:hover,
+html[data-theme="sunflower-blackcat"]
+  .app-subnav-item.router-link-active:hover {
   color: var(--theme-color-primary-hover);
   background-color: rgba(212, 184, 140, 0.16);
 }
 
-html[data-theme='sunflower-blackcat'] .app-subnav-item:focus-visible {
+html[data-theme="sunflower-blackcat"] .app-subnav-item:focus-visible {
   box-shadow: 0 0 0 0.2rem var(--theme-focus-ring);
 }
 
 /* ─── Home: testo sul pattern + tile senza bianco ─── */
-html[data-theme='sunflower-blackcat'] .home-hero {
+html[data-theme="sunflower-blackcat"] .home-hero {
   background: rgba(36, 32, 25, 0.72);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
@@ -573,37 +579,37 @@ html[data-theme='sunflower-blackcat'] .home-hero {
   box-shadow: 0 4px 18px rgba(12, 8, 6, 0.22);
 }
 
-html[data-theme='sunflower-blackcat'] .home-hero .home-welcome {
+html[data-theme="sunflower-blackcat"] .home-hero .home-welcome {
   color: var(--theme-text-primary) !important;
   font-weight: 500;
   opacity: 0.96;
 }
 
-html[data-theme='sunflower-blackcat'] .home-hero .home-title {
+html[data-theme="sunflower-blackcat"] .home-hero .home-title {
   color: var(--theme-text-primary) !important;
 }
 
-html[data-theme='sunflower-blackcat'] a.home-tile {
+html[data-theme="sunflower-blackcat"] a.home-tile {
   background-color: var(--theme-surface-1) !important;
   color: var(--theme-text-primary) !important;
   border-color: var(--theme-border-soft) !important;
   box-shadow: var(--bs-box-shadow-sm);
 }
 
-html[data-theme='sunflower-blackcat'] a.home-tile .fw-semibold {
+html[data-theme="sunflower-blackcat"] a.home-tile .fw-semibold {
   color: var(--theme-text-primary);
 }
 
-html[data-theme='sunflower-blackcat'] a.home-tile .text-primary {
+html[data-theme="sunflower-blackcat"] a.home-tile .text-primary {
   color: var(--theme-color-primary) !important;
 }
 
-html[data-theme='sunflower-blackcat'] a.home-tile .text-secondary,
-html[data-theme='sunflower-blackcat'] a.home-tile .small.text-secondary {
+html[data-theme="sunflower-blackcat"] a.home-tile .text-secondary,
+html[data-theme="sunflower-blackcat"] a.home-tile .small.text-secondary {
   color: var(--theme-text-secondary) !important;
 }
 
-html[data-theme='sunflower-blackcat'] a.home-tile:hover {
+html[data-theme="sunflower-blackcat"] a.home-tile:hover {
   border-color: rgba(212, 184, 140, 0.38) !important;
   background-color: var(--theme-surface-2) !important;
   box-shadow: var(--theme-shadow-soft);
@@ -613,12 +619,12 @@ html[data-theme='sunflower-blackcat'] a.home-tile:hover {
  * Bootstrap: .text-secondary usa rgba(--bs-secondary-rgb) = colore “secondary” del tema.
  * Nel sunflower --bs-secondary è un marrone scuro (bottoni/superfici) → testo illeggibile.
  */
-html[data-theme='sunflower-blackcat'] .text-secondary {
+html[data-theme="sunflower-blackcat"] .text-secondary {
   color: var(--theme-text-secondary) !important;
 }
 
 /* btn-light (picker lista, ⋮, ecc.): niente bianco su tema scuro */
-html[data-theme='sunflower-blackcat'] .btn-light {
+html[data-theme="sunflower-blackcat"] .btn-light {
   --bs-btn-color: var(--theme-text-primary);
   --bs-btn-bg: var(--theme-surface-1);
   --bs-btn-border-color: var(--theme-border-soft);
@@ -634,30 +640,40 @@ html[data-theme='sunflower-blackcat'] .btn-light {
 }
 
 /* Lista spesa / Todo: contenitore più definito sul pattern */
-html[data-theme='sunflower-blackcat'] ul.shopping-items-list {
+html[data-theme="sunflower-blackcat"] ul.shopping-items-list {
   background-color: var(--theme-surface-1) !important;
   border-color: var(--theme-border-soft) !important;
   box-shadow: var(--theme-shadow-soft);
 }
 
 /* Righe “comprato / fatto”: sfondo distinto dalla card (prima merge con surface-1) */
-html[data-theme='sunflower-blackcat'] .shopping-items-list .shopping-list-row--done.bg-body-tertiary,
-html[data-theme='sunflower-blackcat'] .shopping-items-list .shopping-swipe-front--done.bg-body-tertiary {
+html[data-theme="sunflower-blackcat"]
+  .shopping-items-list
+  .shopping-list-row--done.bg-body-tertiary,
+html[data-theme="sunflower-blackcat"]
+  .shopping-items-list
+  .shopping-swipe-front--done.bg-body-tertiary {
   background-color: var(--theme-surface-2) !important;
 }
 
 /* Articoli barrati: restano leggibili (text-secondary corretto + strikethrough visibile) */
-html[data-theme='sunflower-blackcat'] .shopping-items-list .item-text.text-decoration-line-through {
+html[data-theme="sunflower-blackcat"]
+  .shopping-items-list
+  .item-text.text-decoration-line-through {
   text-decoration-color: rgba(196, 182, 168, 0.55);
 }
 
-html[data-theme='sunflower-blackcat'] .shopping-items-list .shopping-done-tick.text-success {
+html[data-theme="sunflower-blackcat"]
+  .shopping-items-list
+  .shopping-done-tick.text-success {
   color: var(--theme-success) !important;
   opacity: 1;
 }
 
 /* Wishlist: stesso problema tertiary su card swipe */
-html[data-theme='sunflower-blackcat'] .wish-swipe-track .shopping-swipe-front.bg-body-tertiary {
+html[data-theme="sunflower-blackcat"]
+  .wish-swipe-track
+  .shopping-swipe-front.bg-body-tertiary {
   background-color: var(--theme-surface-2) !important;
 }
 
@@ -667,12 +683,12 @@ html[data-theme='sunflower-blackcat'] .wish-swipe-track .shopping-swipe-front.bg
  * Chrome il contrasto risulta migliore. Allineiamo leggibilità senza cambiare il tema altrove.
  */
 @supports (-webkit-touch-callout: none) {
-  html[data-theme='sunflower-blackcat'] .shopping-main {
+  html[data-theme="sunflower-blackcat"] .shopping-main {
     -webkit-font-smoothing: auto;
     -moz-osx-font-smoothing: auto;
   }
 
-  html[data-theme='sunflower-blackcat']
+  html[data-theme="sunflower-blackcat"]
     .shopping-main
     .shopping-items-list
     .item-text:not(.text-decoration-line-through) {
@@ -680,21 +696,24 @@ html[data-theme='sunflower-blackcat'] .wish-swipe-track .shopping-swipe-front.bg
     color: var(--theme-text-primary);
   }
 
-  html[data-theme='sunflower-blackcat'] .shopping-main .shopping-marker-hint {
+  html[data-theme="sunflower-blackcat"] .shopping-main .shopping-marker-hint {
     opacity: 1 !important;
     color: var(--theme-text-muted);
   }
 
-  html[data-theme='sunflower-blackcat'] .shopping-main .shopping-list-heading .fw-semibold.text-secondary {
+  html[data-theme="sunflower-blackcat"]
+    .shopping-main
+    .shopping-list-heading
+    .fw-semibold.text-secondary {
     color: var(--theme-text-secondary) !important;
     font-weight: 600;
   }
 
-  html[data-theme='sunflower-blackcat'] .shopping-main .shopping-user-chip {
+  html[data-theme="sunflower-blackcat"] .shopping-main .shopping-user-chip {
     color: var(--theme-text-secondary);
   }
 
-  html[data-theme='sunflower-blackcat'] .shopping-main p.text-secondary {
+  html[data-theme="sunflower-blackcat"] .shopping-main p.text-secondary {
     color: var(--theme-text-secondary) !important;
   }
 }
@@ -706,12 +725,12 @@ html[data-theme='sunflower-blackcat'] .wish-swipe-track .shopping-swipe-front.bg
  * senza sostituire lo sfondo dell’app.
  */
 @supports (-webkit-touch-callout: none) {
-  html[data-theme='sunflower-blackcat'] main.shopping-route-spesa {
+  html[data-theme="sunflower-blackcat"] main.shopping-route-spesa {
     position: relative;
   }
 
-  html[data-theme='sunflower-blackcat'] main.shopping-route-spesa::before {
-    content: '';
+  html[data-theme="sunflower-blackcat"] main.shopping-route-spesa::before {
+    content: "";
     position: absolute;
     inset: 0;
     width: 100%;
@@ -719,23 +738,25 @@ html[data-theme='sunflower-blackcat'] .wish-swipe-track .shopping-swipe-front.bg
     min-height: 100dvh;
     pointer-events: none;
     z-index: 0;
-    background: rgba(36, 32, 25, 0.2);
+    background: rgba(36, 32, 25, 0.6);
   }
 
-  html[data-theme='sunflower-blackcat'] main.shopping-route-spesa > .shopping-inner {
+  html[data-theme="sunflower-blackcat"]
+    main.shopping-route-spesa
+    > .shopping-inner {
     position: relative;
     z-index: 1;
   }
 }
 
 /* Transizioni tema */
-html[data-theme='sunflower-blackcat'] body,
-html[data-theme='sunflower-blackcat'] .app-shell,
-html[data-theme='sunflower-blackcat'] .app-top-nav,
-html[data-theme='sunflower-blackcat'] .card,
-html[data-theme='sunflower-blackcat'] ul.shopping-items-list,
-html[data-theme='sunflower-blackcat'] a.home-tile,
-html[data-theme='sunflower-blackcat'] .home-hero {
+html[data-theme="sunflower-blackcat"] body,
+html[data-theme="sunflower-blackcat"] .app-shell,
+html[data-theme="sunflower-blackcat"] .app-top-nav,
+html[data-theme="sunflower-blackcat"] .card,
+html[data-theme="sunflower-blackcat"] ul.shopping-items-list,
+html[data-theme="sunflower-blackcat"] a.home-tile,
+html[data-theme="sunflower-blackcat"] .home-hero {
   transition:
     background-color 0.22s ease,
     color 0.18s ease,
