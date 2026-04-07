@@ -1,5 +1,5 @@
 import { computed, ref, watch } from 'vue'
-import type { RealtimeChannel, Session } from '@supabase/supabase-js'
+import type { AuthChangeEvent, RealtimeChannel, Session } from '@supabase/supabase-js'
 import type {
   GroceryItem,
   GroceryListMeta,
@@ -10,6 +10,29 @@ import type {
 import type { VeganOffersResult } from '@/types/offers'
 import { getSupabaseClient } from '@/lib/supabase'
 import { authSession } from '@/auth/authSession'
+
+/** Produzione: `localStorage.setItem('debug_supabase_sync','1')` poi reload → log `[supabase-sync]` in console. */
+function debugSyncEnabled(): boolean {
+  try {
+    return import.meta.env.DEV || localStorage.getItem('debug_supabase_sync') === '1'
+  } catch {
+    return import.meta.env.DEV
+  }
+}
+
+function logSyncDebug(...args: unknown[]) {
+  if (debugSyncEnabled()) console.debug('[supabase-sync]', ...args)
+}
+
+/** Serializza syncSessionToAppUser (onAuthStateChange + init) per evitare sovrapposizioni. */
+let syncSessionMutexTail: Promise<void> = Promise.resolve()
+
+/** Utente per cui l’ultima sync completa ha avuto successo (per saltare lavoro su TOKEN_REFRESHED). */
+let lastSyncedAuthUserId: string | null = null
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
 
 const ACTIVE_USER_KEY = 'lety-dani:active-user'
 const GROCERIES_KEY = 'lety-dani:groceries'
@@ -499,10 +522,28 @@ function applyAppUserRowToProfiles(row: AppUserRowDb) {
   }
 }
 
-async function fetchAppUserRow(userId: string): Promise<AppUserRowDb | null> {
+type FetchAppUserResult =
+  | { kind: 'ok'; row: AppUserRowDb }
+  | { kind: 'missing' }
+  | { kind: 'transient'; message: string }
+
+function isTransientPostgrestError(error: {
+  message?: string
+  code?: string
+  details?: string | null
+}): boolean {
+  const code = String(error.code ?? '')
+  const msg = `${error.message ?? ''} ${error.details ?? ''}`.toLowerCase()
+  if (code === 'PGRST000') return true
+  return /network|fetch failed|failed to fetch|timeout|econnreset|aborted|502|503|504|unavailable|exceeded|deadline|timed out|connection/.test(
+    msg,
+  )
+}
+
+async function fetchAppUserRowOnce(userId: string): Promise<FetchAppUserResult> {
   lastAppUserFetchError.value = null
   const sb = getSupabaseClient()
-  if (!sb) return null
+  if (!sb) return { kind: 'missing' }
   const { data, error } = await sb
     .from('app_user')
     .select(
@@ -511,26 +552,52 @@ async function fetchAppUserRow(userId: string): Promise<AppUserRowDb | null> {
     .eq('user_id', userId)
     .maybeSingle()
   if (error) {
+    if (isTransientPostgrestError(error)) {
+      lastAppUserFetchError.value = error.message
+      return { kind: 'transient', message: error.message }
+    }
     const { data: legacy, error: legacyErr } = await sb
       .from('app_user')
       .select('app_role')
       .eq('user_id', userId)
       .maybeSingle()
-    if (legacyErr || !legacy) {
+    if (legacyErr) {
+      if (isTransientPostgrestError(legacyErr)) {
+        lastAppUserFetchError.value = legacyErr.message
+        return { kind: 'transient', message: legacyErr.message }
+      }
       lastAppUserFetchError.value = error.message
-      return null
+      return { kind: 'missing' }
+    }
+    if (!legacy) {
+      lastAppUserFetchError.value = error.message
+      return { kind: 'missing' }
     }
     return {
-      app_role: (legacy as { app_role: string }).app_role,
-      display_name: null,
-      power_admin: false,
-      icon_color: null,
-      icon_shape: 'circle',
-      avatar_url: null,
+      kind: 'ok',
+      row: {
+        app_role: (legacy as { app_role: string }).app_role,
+        display_name: null,
+        power_admin: false,
+        icon_color: null,
+        icon_shape: 'circle',
+        avatar_url: null,
+      },
     }
   }
-  if (!data) return null
-  return data as AppUserRowDb
+  if (!data) return { kind: 'missing' }
+  return { kind: 'ok', row: data as AppUserRowDb }
+}
+
+async function fetchAppUserRow(userId: string): Promise<FetchAppUserResult> {
+  let last: FetchAppUserResult = { kind: 'transient', message: 'unknown' }
+  for (let attempt = 0; attempt < 3; attempt++) {
+    last = await fetchAppUserRowOnce(userId)
+    if (last.kind !== 'transient') return last
+    logSyncDebug('fetchAppUserRow retry', attempt + 1, last.message)
+    if (attempt < 2) await sleep(400 * (attempt + 1))
+  }
+  return last
 }
 
 /** Carica display_name (e slug) dei membri del garden corrente per etichette “chi ha aggiunto”. */
@@ -598,9 +665,10 @@ async function loadCurrentGardenFromSupabase() {
 export async function refreshAppUserProfileFromDb(): Promise<boolean> {
   const uid = authSession.value?.user?.id
   if (!uid) return false
-  const row = await fetchAppUserRow(uid)
-  if (!row || !String(row.app_role ?? '').trim()) return false
-  applyAppUserRowToProfiles(row)
+  const result = await fetchAppUserRow(uid)
+  if (result.kind === 'transient') return false
+  if (result.kind === 'missing' || !String(result.row.app_role ?? '').trim()) return false
+  applyAppUserRowToProfiles(result.row)
   return true
 }
 
@@ -798,8 +866,9 @@ export function ensureGroceryRealtimeConnected() {
   setupGroceryRealtimeChannel()
 }
 
-export async function syncSessionToAppUser(session: Session | null) {
+async function syncSessionToAppUserImpl(session: Session | null, event?: AuthChangeEvent) {
   if (!session?.user) {
+    lastSyncedAuthUserId = null
     appUserSessionValid.value = false
     authSession.value = null
     teardownGroceryRealtime()
@@ -814,15 +883,34 @@ export async function syncSessionToAppUser(session: Session | null) {
    * `fetchAppRoleFromDb` è async; se lo mettiamo a false subito, il router guard
    * ci tratta come sloggati durante la richiesta e reindirizza a /login.
    */
+  if (
+    event === 'TOKEN_REFRESHED' &&
+    session.user.id === lastSyncedAuthUserId &&
+    appUserSessionValid.value
+  ) {
+    authSession.value = session
+    logSyncDebug('skip heavy sync on TOKEN_REFRESHED', session.user.id)
+    return
+  }
+
   authSession.value = session
   const sb = getSupabaseClient()
   if (!sb) return
-  const row = await fetchAppUserRow(session.user.id)
+
+  const result = await fetchAppUserRow(session.user.id)
+  if (result.kind === 'transient') {
+    lastAppUserFetchError.value = result.message
+    logSyncDebug('transient app_user fetch, keeping session state', result.message)
+    return
+  }
+
+  const row = result.kind === 'ok' ? result.row : null
   const role = row?.app_role != null ? String(row.app_role).trim() : ''
-  if (!row || !role) {
+  if (result.kind === 'missing' || !row || !role) {
     appUserSessionValid.value = false
     currentGarden.value = null
     powerAdmin.value = false
+    lastSyncedAuthUserId = null
     teardownGroceryRealtime()
     groceries.value = []
     groceryLists.value = []
@@ -836,7 +924,22 @@ export async function syncSessionToAppUser(session: Session | null) {
   powerAdmin.value = Boolean(row.power_admin)
   await loadCurrentGardenFromSupabase()
   appUserSessionValid.value = true
+  lastSyncedAuthUserId = session.user.id
   await startGroceriesSync()
+}
+
+export async function syncSessionToAppUser(session: Session | null, event?: AuthChangeEvent) {
+  const previous = syncSessionMutexTail
+  let release!: () => void
+  syncSessionMutexTail = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  await previous
+  try {
+    await syncSessionToAppUserImpl(session, event)
+  } finally {
+    release()
+  }
 }
 
 let resolveAuthInit!: () => void
@@ -858,7 +961,7 @@ export async function initAppAuthAndStorage() {
     sb.auth.onAuthStateChange(async (event, session) => {
       authSession.value = session
       if (event === 'INITIAL_SESSION') return
-      await syncSessionToAppUser(session)
+      await syncSessionToAppUser(session, event)
     })
   } finally {
     resolveAuthInit()
@@ -866,6 +969,7 @@ export async function initAppAuthAndStorage() {
 }
 
 export async function signOutUser() {
+  lastSyncedAuthUserId = null
   await getSupabaseClient()?.auth.signOut()
 }
 
