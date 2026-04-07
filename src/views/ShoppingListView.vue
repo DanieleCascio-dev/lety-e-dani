@@ -599,7 +599,7 @@
 </script>
 
 <template>
-  <main class="shopping-main shopping-page shopping-route-spesa">
+  <main class="shopping-main shopping-page">
     <div
       class="container-fluid px-3 px-sm-4 shopping-inner"
       style="max-width: 32rem"

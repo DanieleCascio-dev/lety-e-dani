@@ -247,7 +247,8 @@ html[data-theme="sunflower-blackcat"] ::selection {
 
 /*
  * Shell: base marrone + pattern acquerello (PNG chiaro).
- * soft-light fonde il tile sul fondo scuro senza strappare il contrasto UI.
+ * `soft-light` su WebKit (Safari iOS) risulta molto più chiaro che su Blink; un solo blend
+ * su tutte le piattaforme evita differenze tra route e tra browser.
  */
 html[data-theme="sunflower-blackcat"] .app-shell {
   background-color: var(--theme-app-shell-bg) !important;
@@ -255,19 +256,7 @@ html[data-theme="sunflower-blackcat"] .app-shell {
   background-repeat: repeat !important;
   background-size: var(--theme-shell-pattern-size) !important;
   background-position: 0 0;
-  background-blend-mode: soft-light;
-}
-
-/*
- * WebKit (Safari iOS / Safari desktop): `soft-light` tra PNG chiaro e fondo scuro viene
- * reso molto più luminoso che su Chrome/Blink (Android, desktop). Non è la pagina spesa
- * in sé: è il compositing dello shell; dove il contenuto è trasparente si vede il “wash out”.
- * `overlay` mantiene pattern + tinta ma allinea la luminanza a quanto ci si aspetta da soft-light altrove.
- */
-@supports (-webkit-touch-callout: none) {
-  html[data-theme="sunflower-blackcat"] .app-shell {
-    background-blend-mode: overlay;
-  }
+  background-blend-mode: overlay;
 }
 
 html[data-theme="sunflower-blackcat"] .app-top-nav {
@@ -715,37 +704,6 @@ html[data-theme="sunflower-blackcat"]
 
   html[data-theme="sunflower-blackcat"] .shopping-main p.text-secondary {
     color: var(--theme-text-secondary) !important;
-  }
-}
-
-/*
- * Solo route /lista-spesa: a differenza del Todo non c’è un <h1> sopra i controlli, quindi
- * resta più “nuda” la colonna sul pattern; su WebKit iOS il pattern + soft-light/overlay
- * dello shell risulta più invadente. Velatura sul main (pattern ancora visibile sotto)
- * senza sostituire lo sfondo dell’app.
- */
-@supports (-webkit-touch-callout: none) {
-  html[data-theme="sunflower-blackcat"] main.shopping-route-spesa {
-    position: relative;
-  }
-
-  html[data-theme="sunflower-blackcat"] main.shopping-route-spesa::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    min-height: 100%;
-    min-height: 100dvh;
-    pointer-events: none;
-    z-index: 0;
-    background: rgba(36, 32, 25, 0.6);
-  }
-
-  html[data-theme="sunflower-blackcat"]
-    main.shopping-route-spesa
-    > .shopping-inner {
-    position: relative;
-    z-index: 1;
   }
 }
 
