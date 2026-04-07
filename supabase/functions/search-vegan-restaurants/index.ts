@@ -1,4 +1,4 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { createClient } from "@supabase/supabase-js";
 
 const corsHeaders: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -424,12 +424,13 @@ Deno.serve(async (req) => {
     });
   }
 
+  /** Elenco: (1) dal più vicino al più lontano, (2) a parità di distanza rating Google più alto prima, (3) spareggio tipo locale (vegano prima). */
   enriched.sort((a, b) => {
-    if (a.sortTier !== b.sortTier) return a.sortTier - b.sortTier;
+    if (a.distanceKm !== b.distanceKm) return a.distanceKm - b.distanceKm;
     const ra = a.rating ?? -1;
     const rb = b.rating ?? -1;
     if (rb !== ra) return rb - ra;
-    return a.distanceKm - b.distanceKm;
+    return a.sortTier - b.sortTier;
   });
 
   const restaurants = enriched.slice(0, 35).map((r) => ({
@@ -449,7 +450,7 @@ Deno.serve(async (req) => {
   const modelNote =
     restaurants.length === 0
       ? "Nessun locale trovato nel raggio con le ricerche attuali. Prova ad aumentare i chilometri o verifica in Google Cloud che sia abilitata la «Places API (New)» per questa chiave."
-      : "Risultati da Google Places, ordinati: prima i locali 100% vegani, poi vegetariano / buone opzioni vegane, infine bar e altri (i tipi principalmente carni sono esclusi). " +
+      : "Risultati da Google Places, ordinati per distanza (dal più vicino), poi per valutazione stelle a parità di distanza. Le etichette tipo «100% vegano» sono informative; i tipi principalmente a base carne sono esclusi. " +
         "Orari e menu: verifica sempre su Maps.";
 
   return jsonResponse({
