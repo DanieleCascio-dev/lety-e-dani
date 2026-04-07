@@ -1478,6 +1478,15 @@
     overflow: visible;
   }
 
+  @supports (-webkit-touch-callout: none) {
+    .shopping-items-list {
+      overflow: hidden;
+      -webkit-backface-visibility: hidden;
+      backface-visibility: hidden;
+      transform: translateZ(0);
+    }
+  }
+
   .shopping-items-list > li:first-child {
     border-top-left-radius: var(--bs-border-radius-lg);
     border-top-right-radius: var(--bs-border-radius-lg);

@@ -258,6 +258,18 @@ html[data-theme='sunflower-blackcat'] .app-shell {
   background-blend-mode: soft-light;
 }
 
+/*
+ * WebKit (Safari iOS / Safari desktop): `soft-light` tra PNG chiaro e fondo scuro viene
+ * reso molto più luminoso che su Chrome/Blink (Android, desktop). Non è la pagina spesa
+ * in sé: è il compositing dello shell; dove il contenuto è trasparente si vede il “wash out”.
+ * `overlay` mantiene pattern + tinta ma allinea la luminanza a quanto ci si aspetta da soft-light altrove.
+ */
+@supports (-webkit-touch-callout: none) {
+  html[data-theme='sunflower-blackcat'] .app-shell {
+    background-blend-mode: overlay;
+  }
+}
+
 html[data-theme='sunflower-blackcat'] .app-top-nav {
   background-color: var(--theme-nav-bg) !important;
   border-bottom: 1px solid var(--theme-border-soft) !important;
