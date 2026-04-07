@@ -9,6 +9,9 @@ let client: SupabaseClient | null | undefined;
  */
 let authLockTail: Promise<void> = Promise.resolve();
 
+/** Se `fn()` non termina mai (rete/token appesi), senza timeout la catena blocca tutte le operazioni auth → niente JWT sulle richieste PostgREST. */
+const AUTH_LOCK_INNER_TIMEOUT_MS = 90_000;
+
 async function authLockSerial<R>(
   _name: string,
   _acquireTimeout: number,
@@ -21,7 +24,21 @@ async function authLockSerial<R>(
   });
   await previous;
   try {
-    return await fn();
+    return await Promise.race([
+      fn(),
+      new Promise<R>((_, reject) => {
+        setTimeout(() => {
+          reject(
+            new Error(
+              `Auth lock: operazione interna oltre ${AUTH_LOCK_INNER_TIMEOUT_MS}ms (possibile rete/token appesi)`,
+            ),
+          );
+        }, AUTH_LOCK_INNER_TIMEOUT_MS);
+      }),
+    ]);
+  } catch (e) {
+    console.error("[supabase auth lock]", e);
+    throw e;
   } finally {
     release();
   }

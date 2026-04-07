@@ -28,6 +28,9 @@ function logSyncDebug(...args: unknown[]) {
 /** Serializza syncSessionToAppUser (onAuthStateChange + init) per evitare sovrapposizioni. */
 let syncSessionMutexTail: Promise<void> = Promise.resolve()
 
+/** Evita che una sync appesa (es. signOut/rete) blocchi per sempre il mutex. */
+const SYNC_SESSION_MUTEX_TIMEOUT_MS = 120_000
+
 /** Utente per cui l’ultima sync completa ha avuto successo (per saltare lavoro su TOKEN_REFRESHED). */
 let lastSyncedAuthUserId: string | null = null
 
@@ -950,7 +953,28 @@ export async function syncSessionToAppUser(session: Session | null, event?: Auth
   })
   await previous
   try {
-    await syncSessionToAppUserImpl(session, event)
+    await Promise.race([
+      syncSessionToAppUserImpl(session, event),
+      new Promise<never>((_, reject) => {
+        setTimeout(() => {
+          reject(
+            new Error(
+              `__SYNC_SESSION_TIMEOUT__ Sincronizzazione sessione oltre ${SYNC_SESSION_MUTEX_TIMEOUT_MS}ms`,
+            ),
+          )
+        }, SYNC_SESSION_MUTEX_TIMEOUT_MS)
+      }),
+    ])
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    if (msg.startsWith('__SYNC_SESSION_TIMEOUT__')) {
+      console.error('[supabase-sync] syncSessionToAppUser timeout', e)
+      lastAppUserFetchError.value =
+        `Timeout sincronizzazione (>${SYNC_SESSION_MUTEX_TIMEOUT_MS / 1000}s). Controlla la rete e ricarica.`
+      return
+    }
+    console.error('[supabase-sync] syncSessionToAppUser', e)
+    throw e
   } finally {
     release()
   }
@@ -972,10 +996,12 @@ export async function initAppAuthAndStorage() {
     authSession.value = data.session ?? null
     await syncSessionToAppUser(data.session ?? null)
 
-    sb.auth.onAuthStateChange(async (event, session) => {
+    sb.auth.onAuthStateChange((event, session) => {
       authSession.value = session
       if (event === 'INITIAL_SESSION') return
-      await syncSessionToAppUser(session, event)
+      void syncSessionToAppUser(session, event).catch((err) => {
+        console.error('[supabase-sync] onAuthStateChange', err)
+      })
     })
   } finally {
     resolveAuthInit()
