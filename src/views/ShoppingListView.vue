@@ -1607,22 +1607,17 @@
   .shopping-items-list {
     border: 1px solid var(--bs-border-color-translucent);
     background: var(--bs-body-bg);
-    /* overflow visibile: altrimenti il menu ⋮ viene ritagliato e risulta “invisibile” */
-    overflow: visible;
-  }
-
-  /*
-   * WebKit iOS: senza overflow hidden il contenuto delle righe (swipe track) non segue
-   * i bordi arrotondati di .rounded-3 e si vedono angoli “quadrati” / sfasamenti.
-   * I menu lista sono sopra il <ul> o in Teleport, non dentro la lista.
-   */
-  @supports (-webkit-touch-callout: none) {
-    .shopping-items-list {
-      overflow: hidden;
-      -webkit-backface-visibility: hidden;
-      backface-visibility: hidden;
-      transform: translateZ(0);
-    }
+    /*
+     * overflow: hidden + layer: necessari su tutte le piattaforme (incluso Chrome Android)
+     * per rispettare border-radius su <ul> e ridurre artefatti sui bordi 1px.
+     * I menu ⋮ / picker sono fuori da questo <ul> o in Teleport.
+     */
+    overflow: hidden;
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+    transform: translateZ(0);
+    -webkit-background-clip: padding-box;
+    background-clip: padding-box;
   }
 
   .shopping-items-list > li:first-child {

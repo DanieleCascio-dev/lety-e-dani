@@ -26,7 +26,7 @@
  * Danger (terracotta soft):                      #c99488
  * Info (blu polvere):                            #8fa8b0
  *
- * Pattern shell: /sunflower_cat_pattern.png (tile), blend soft sul marrone shell.
+ * Pattern shell: /sunflower_cat_pattern.png (tile), velatura `--theme-shell-pattern-dim` sul marrone shell.
  */
 
 html[data-theme="sunflower-blackcat"] {
@@ -68,6 +68,8 @@ html[data-theme="sunflower-blackcat"] {
   /* Tile PNG in public/ — regola `background-size` se il repeat non coincide col seamless */
   --theme-shell-pattern-url: url("/sunflower_cat_pattern.png");
   --theme-shell-pattern-size: auto;
+  /* Velatura sopra il tile: stesso risultato visivo su iOS/Android senza background-blend-mode */
+  --theme-shell-pattern-dim: rgba(36, 32, 25, 0.36);
 
   /* ─── Bootstrap mapping ─── */
   --bs-body-bg: var(--theme-bg-primary);
@@ -246,18 +248,18 @@ html[data-theme="sunflower-blackcat"] ::selection {
 }
 
 /*
- * Shell: base marrone + pattern acquerello (PNG chiaro).
- * `soft-light` / `overlay` su WebKit iOS tendono a far emergere troppo la chiarezza del PNG.
- * `multiply` su fondo scuro abbassa la luminanza del tile in modo più coerente tra Safari e Chrome
- * (evita la spesa “lavata” mentre il Todo può sembrare diverso solo per compositing locale).
+ * Shell: base marrone + pattern + velatura scura (nessun background-blend-mode sullo stack).
+ * `soft-light` / `multiply` / `overlay` tra colore e PNG variano molto tra WebKit iOS e Chrome
+ * (sfondo troppo chiaro solo su alcune route/device). Tre strati sovrapposti: stesso output ovunque.
  */
 html[data-theme="sunflower-blackcat"] .app-shell {
   background-color: var(--theme-app-shell-bg) !important;
-  background-image: var(--theme-shell-pattern-url) !important;
-  background-repeat: repeat !important;
-  background-size: var(--theme-shell-pattern-size) !important;
-  background-position: 0 0;
-  background-blend-mode: multiply;
+  background-image:
+    linear-gradient(var(--theme-shell-pattern-dim), var(--theme-shell-pattern-dim)),
+    var(--theme-shell-pattern-url) !important;
+  background-repeat: repeat, repeat;
+  background-size: auto, var(--theme-shell-pattern-size) !important;
+  background-position: 0 0, 0 0;
 }
 
 html[data-theme="sunflower-blackcat"] .app-top-nav {
@@ -271,10 +273,21 @@ html[data-theme="sunflower-blackcat"] .card {
   background-color: var(--theme-surface-1);
   border: 1px solid var(--theme-border-soft);
   box-shadow: var(--theme-shadow-sm);
+  -webkit-background-clip: padding-box;
+  background-clip: padding-box;
 }
 
 html[data-theme="sunflower-blackcat"] .card.border-0 {
   border: 1px solid var(--theme-border-soft) !important;
+}
+
+/*
+ * Chrome Android: bordi 1px + border-radius possono risultare spezzati o invisibili;
+ * padding-box evita che il background “mangi” il bordo.
+ */
+html[data-theme="sunflower-blackcat"] .rounded-3 {
+  -webkit-background-clip: padding-box;
+  background-clip: padding-box;
 }
 
 /* Primary CTA */
@@ -632,8 +645,15 @@ html[data-theme="sunflower-blackcat"] .btn-light {
 /* Lista spesa / Todo: contenitore più definito sul pattern */
 html[data-theme="sunflower-blackcat"] ul.shopping-items-list {
   background-color: var(--theme-surface-1) !important;
-  border-color: var(--theme-border-soft) !important;
+  border: 1px solid var(--theme-border-soft) !important;
   box-shadow: var(--theme-shadow-soft);
+  /*
+   * overflow + clip: senza overflow hidden, border-radius (rounded-3) non ritaglia i figli
+   * su Chrome Android; i bordi 1px possono anche “sparire” per subpixel.
+   */
+  overflow: hidden !important;
+  -webkit-background-clip: padding-box;
+  background-clip: padding-box;
 }
 
 /* Righe “comprato / fatto”: sfondo distinto dalla card (prima merge con surface-1) */

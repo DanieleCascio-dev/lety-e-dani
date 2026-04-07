@@ -1475,16 +1475,12 @@
   .shopping-items-list {
     border: 1px solid var(--bs-border-color-translucent);
     background: var(--bs-body-bg);
-    overflow: visible;
-  }
-
-  @supports (-webkit-touch-callout: none) {
-    .shopping-items-list {
-      overflow: hidden;
-      -webkit-backface-visibility: hidden;
-      backface-visibility: hidden;
-      transform: translateZ(0);
-    }
+    overflow: hidden;
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+    transform: translateZ(0);
+    -webkit-background-clip: padding-box;
+    background-clip: padding-box;
   }
 
   .shopping-items-list > li:first-child {
