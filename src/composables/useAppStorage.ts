@@ -8,6 +8,7 @@ import type {
   UserProfile,
 } from '@/types/app'
 import type { VeganOffersResult } from '@/types/offers'
+import { queryAbortSignal } from '@/lib/supabaseQuery'
 import { getSupabaseClient } from '@/lib/supabase'
 import { authSession } from '@/auth/authSession'
 
@@ -373,6 +374,7 @@ async function fetchGroceryListsFromSupabase(silent: boolean) {
       .from('grocery_lists')
       .select('id, created_at, created_by, title')
       .order('created_at', { ascending: false })
+      .abortSignal(queryAbortSignal())
     if (error) {
       groceriesError.value = error.message
       return
@@ -414,6 +416,7 @@ async function fetchGroceriesFromSupabase(silent: boolean) {
       .select('id, text, done, added_by, list_id')
       .eq('list_id', lid)
       .order('created_at', { ascending: true })
+      .abortSignal(queryAbortSignal())
     if (error) {
       groceriesError.value = error.message
       return
@@ -557,6 +560,7 @@ async function fetchAppUserRowOnce(userId: string): Promise<FetchAppUserResult> 
     )
     .eq('user_id', userId)
     .maybeSingle()
+    .abortSignal(queryAbortSignal())
   if (error) {
     if (isTransientPostgrestError(error)) {
       lastAppUserFetchError.value = error.message
@@ -567,6 +571,7 @@ async function fetchAppUserRowOnce(userId: string): Promise<FetchAppUserResult> 
       .select('app_role')
       .eq('user_id', userId)
       .maybeSingle()
+      .abortSignal(queryAbortSignal())
     if (legacyErr) {
       if (isTransientPostgrestError(legacyErr)) {
         lastAppUserFetchError.value = legacyErr.message
@@ -616,12 +621,14 @@ async function hydrateGardenPeerProfilesFromGarden() {
     .from('garden_member')
     .select('user_id')
     .eq('garden_id', g.id)
+    .abortSignal(queryAbortSignal())
   if (mErr || !members?.length) return
   const userIds = [...new Set(members.map((m: { user_id: string }) => m.user_id))]
   const { data: rows, error } = await sb
     .from('app_user')
     .select('app_role, display_name, avatar_url')
     .in('user_id', userIds)
+    .abortSignal(queryAbortSignal())
   if (error || !rows?.length) return
   for (const raw of rows) {
     const row = raw as { app_role: string; display_name: string | null; avatar_url: string | null }
@@ -648,6 +655,7 @@ async function loadCurrentGardenFromSupabase() {
     .eq('user_id', uid)
     .limit(1)
     .maybeSingle()
+    .abortSignal(queryAbortSignal())
   if (error || !data) {
     currentGarden.value = null
     return

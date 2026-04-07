@@ -9,6 +9,7 @@ import type {
 } from '@/types/wishlist'
 import { cleanProductTitle } from '@/lib/wishlistNormalize'
 import { authSession } from '@/auth/authSession'
+import { queryAbortSignal } from '@/lib/supabaseQuery'
 import {
   activeUser,
   currentGarden,
@@ -130,6 +131,7 @@ async function fetchWishListsFromSupabase(silent: boolean) {
       .from('wishlist_lists')
       .select('id, created_at, created_by, title')
       .order('created_at', { ascending: false })
+      .abortSignal(queryAbortSignal())
     if (qErr) {
       error.value = qErr.message
       return
@@ -180,6 +182,7 @@ async function fetchWishItemsFromSupabase(silent: boolean) {
       )
       .eq('list_id', lid)
       .order('created_at', { ascending: false })
+      .abortSignal(queryAbortSignal())
     if (qErr) {
       error.value = qErr.message
       items.value = []

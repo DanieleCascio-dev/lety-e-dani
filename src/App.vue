@@ -8,10 +8,15 @@
     watch,
   } from "vue";
   import { RouterLink, RouterView, useRoute, useRouter } from "vue-router";
-  import { useAppStorage, signOutUser } from "@/composables/useAppStorage";
+  import { authSession } from "@/auth/authSession";
+  import {
+    refreshGroceryData,
+    signOutUser,
+    useAppStorage,
+  } from "@/composables/useAppStorage";
   import { useTheme } from "@/composables/useTheme";
-  import { resetTodoState } from "@/composables/useTodoLists";
-  import { resetWishlistState } from "@/composables/useWishlist";
+  import { refreshTodoData, resetTodoState } from "@/composables/useTodoLists";
+  import { refreshWishData, resetWishlistState } from "@/composables/useWishlist";
   import { getSupabaseClient } from "@/lib/supabase";
   import FeatureAnnouncementModal from "@/components/FeatureAnnouncementModal.vue";
   import { HOME_FEATURE_ANNOUNCEMENT_ID } from "@/config/featureAnnouncements";
@@ -179,15 +184,27 @@
     if (ev.key === "Escape") closeProfileMenu();
   }
 
+  /** Dopo minuti in background il browser può sospendere fetch/WS; al ritorno ricarichiamo liste in silenzio. */
+  function onVisibilityChange() {
+    if (document.visibilityState !== "visible") return;
+    if (!getSupabaseClient() || !authSession.value?.user || !appUserSessionValid.value)
+      return;
+    void refreshGroceryData({ silent: true });
+    void refreshTodoData({ silent: true });
+    void refreshWishData({ silent: true });
+  }
+
   onMounted(() => {
     document.addEventListener("pointerdown", onDocumentPointerDown, true);
     document.addEventListener("keydown", onDocumentKeydown, true);
+    document.addEventListener("visibilitychange", onVisibilityChange);
   });
 
   onUnmounted(() => {
     unbindProfileMenuPositionListeners();
     document.removeEventListener("pointerdown", onDocumentPointerDown, true);
     document.removeEventListener("keydown", onDocumentKeydown, true);
+    document.removeEventListener("visibilitychange", onVisibilityChange);
   });
 </script>
 

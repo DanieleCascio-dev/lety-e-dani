@@ -2522,6 +2522,15 @@
     min-height: 2.5rem;
   }
 
+  .shopping-more-btn {
+    width: 2.5rem;
+    min-width: 2.5rem;
+    height: 2.5rem;
+    min-height: 2.5rem;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
   .shopping-list-toolbar {
     display: flex;
     flex-wrap: wrap;

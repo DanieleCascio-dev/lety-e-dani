@@ -3,6 +3,7 @@ import type { RealtimeChannel } from '@supabase/supabase-js'
 import type { GroceryItem, GroceryListMeta, TodoItem, UserId } from '@/types/app'
 import { authSession } from '@/auth/authSession'
 import { getSupabaseClient } from '@/lib/supabase'
+import { queryAbortSignal } from '@/lib/supabaseQuery'
 import {
   activeUser,
   appUserSessionValid,
@@ -122,6 +123,7 @@ async function fetchTodoListsFromSupabase(silent: boolean) {
       .from('todo_lists')
       .select('id, created_at, created_by, title')
       .order('created_at', { ascending: false })
+      .abortSignal(queryAbortSignal())
     if (error) {
       todosError.value = error.message
       return
@@ -163,6 +165,7 @@ async function fetchTodosFromSupabase(silent: boolean) {
       .select('id, text, done, added_by, list_id')
       .eq('list_id', lid)
       .order('created_at', { ascending: true })
+      .abortSignal(queryAbortSignal())
     if (error) {
       todosError.value = error.message
       return
