@@ -599,11 +599,12 @@
 </script>
 
 <template>
-  <main class="shopping-main shopping-page">
+  <main class="shopping-main shopping-page shopping-route-spesa">
     <div
       class="container-fluid px-3 px-sm-4 shopping-inner"
       style="max-width: 32rem"
     >
+      <h1 class="h5 fw-semibold mb-3">Lista della spesa</h1>
 
       <div
         v-if="groceriesError"
@@ -1618,9 +1619,8 @@
   @supports (-webkit-touch-callout: none) {
     .shopping-items-list {
       overflow: hidden;
-      -webkit-backface-visibility: hidden;
-      backface-visibility: hidden;
-      transform: translateZ(0);
+      /* Niente translateZ qui: su iOS promuove un layer che può alterare il compositing
+         dello shell dietro la colonna (Todo non mostra lo stesso effetto con h1 sopra). */
     }
   }
 
