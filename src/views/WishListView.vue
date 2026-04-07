@@ -96,6 +96,66 @@
 
   const listMenuOpen = ref(false);
   const listMenuRoot = ref<HTMLElement | null>(null);
+  /** Menu ⋮ azioni lista (nuova, rinomina, elimina) — allineato a lista spesa / todo */
+  const listActionsMenuOpen = ref(false);
+  const listActionsMenuRoot = ref<HTMLElement | null>(null);
+  const listActionsMoreBtnRef = ref<HTMLButtonElement | null>(null);
+  const listActionsMenuPanelRef = ref<HTMLElement | null>(null);
+  const listActionsMenuStyle = ref<Record<string, string>>({});
+
+  function updateListActionsMenuPosition() {
+    const btn = listActionsMoreBtnRef.value;
+    if (!btn || !listActionsMenuOpen.value) return;
+    const r = btn.getBoundingClientRect();
+    if (r.width <= 0 && r.height <= 0) return;
+    const vw = document.documentElement.clientWidth;
+    const vh = window.innerHeight;
+    const gap = 8;
+    const panel = listActionsMenuPanelRef.value;
+    const ph = panel?.offsetHeight ?? 160;
+    let top = r.bottom + gap;
+    const spaceBelow = vh - r.bottom - gap;
+    const spaceAbove = r.top - gap;
+    if (ph > spaceBelow && spaceAbove >= ph) {
+      top = r.top - ph - gap;
+    } else if (top + ph > vh - 8) {
+      top = Math.max(8, vh - ph - 8);
+    }
+    listActionsMenuStyle.value = {
+      position: "fixed",
+      top: `${Math.round(top)}px`,
+      right: `${Math.round(Math.max(8, vw - r.right))}px`,
+      left: "auto",
+      minWidth: `${Math.max(200, Math.round(r.width))}px`,
+      zIndex: "1060",
+    };
+  }
+
+  function bindListActionsMenuPositionListeners() {
+    window.addEventListener("scroll", updateListActionsMenuPosition, true);
+    window.addEventListener("resize", updateListActionsMenuPosition);
+  }
+
+  function unbindListActionsMenuPositionListeners() {
+    window.removeEventListener("scroll", updateListActionsMenuPosition, true);
+    window.removeEventListener("resize", updateListActionsMenuPosition);
+  }
+
+  watch(listActionsMenuOpen, async (open) => {
+    if (!open) {
+      unbindListActionsMenuPositionListeners();
+      listActionsMenuStyle.value = {};
+      return;
+    }
+    await nextTick();
+    requestAnimationFrame(() => {
+      updateListActionsMenuPosition();
+      requestAnimationFrame(() => {
+        updateListActionsMenuPosition();
+        bindListActionsMenuPositionListeners();
+      });
+    });
+  });
 
   const createModalOpen = ref(false);
   const newListName = ref("");
@@ -421,21 +481,37 @@
 
   function toggleListMenu() {
     listMenuOpen.value = !listMenuOpen.value;
+    if (listMenuOpen.value) {
+      listActionsMenuOpen.value = false;
+    }
   }
 
   function closeListMenu() {
     listMenuOpen.value = false;
   }
 
+  function toggleListActionsMenu() {
+    listActionsMenuOpen.value = !listActionsMenuOpen.value;
+    if (listActionsMenuOpen.value) {
+      listMenuOpen.value = false;
+    }
+  }
+
+  function closeListActionsMenu() {
+    listActionsMenuOpen.value = false;
+  }
+
   function pickList(id: string) {
     void selectWishList(id);
     closeListMenu();
+    closeListActionsMenu();
   }
 
   function openCreateModal() {
     newListName.value = "";
     createModalOpen.value = true;
     closeListMenu();
+    closeListActionsMenu();
   }
 
   function closeCreateModal() {
@@ -451,6 +527,7 @@
     renameListName.value = currentWishListMeta.value?.title ?? "";
     renameModalOpen.value = true;
     closeListMenu();
+    closeListActionsMenu();
   }
 
   function closeRenameModal() {
@@ -470,6 +547,7 @@
     deleteTargetId.value = id;
     deleteModalOpen.value = true;
     closeListMenu();
+    closeListActionsMenu();
   }
 
   function closeDeleteModal() {
@@ -495,13 +573,20 @@
   }
 
   async function refreshWishPageData() {
-    if (!isWishCloud.value || !appUserSessionValid.value) return;
+    if (!isWishCloud.value) return;
     await refreshWishData({ silent: true });
     ensureWishRealtimeConnected();
   }
 
+  watch(
+    appUserSessionValid,
+    (ok, wasOk) => {
+      if (ok && wasOk === false && isWishCloud.value) void startWishSync();
+    },
+  );
+
   onMounted(() => {
-    if (appUserSessionValid.value) void startWishSync();
+    if (isWishCloud.value) void startWishSync();
     ensureWishRealtimeConnected();
     document.addEventListener("pointerdown", onDocumentPointerDown, true);
     document.addEventListener("keydown", onDocumentKeydown, true);
@@ -512,6 +597,7 @@
   });
 
   onUnmounted(() => {
+    unbindListActionsMenuPositionListeners();
     document.removeEventListener("pointerdown", onDocumentPointerDown, true);
     document.removeEventListener("keydown", onDocumentKeydown, true);
     if (previewDebounce) clearTimeout(previewDebounce);
@@ -522,6 +608,16 @@
     if (listMenuOpen.value) {
       const root = listMenuRoot.value;
       if (root && t instanceof Node && !root.contains(t)) closeListMenu();
+    }
+    if (listActionsMenuOpen.value) {
+      const root = listActionsMenuRoot.value;
+      const panel = listActionsMenuPanelRef.value;
+      if (t instanceof Node) {
+        const inside = Boolean(
+          (root && root.contains(t)) || (panel && panel.contains(t)),
+        );
+        if (!inside) closeListActionsMenu();
+      }
     }
     if (openCardMenuId.value && t instanceof Element) {
       if (!t.closest(".wish-item-menu")) closeCardMenu();
@@ -535,6 +631,10 @@
     if (ev.key !== "Escape") return;
     if (hasOpenSwipeReveal()) {
       swipeReveal.closeAll();
+      return;
+    }
+    if (listActionsMenuOpen.value) {
+      closeListActionsMenu();
       return;
     }
     if (removeItemModalOpen.value) {
@@ -605,9 +705,7 @@
         <span class="form-label small text-secondary d-block mb-1 fw-semibold"
           >Lista attiva</span
         >
-        <div
-          class="d-flex flex-column flex-sm-row gap-2 align-items-stretch align-items-sm-center shopping-list-controls-row"
-        >
+        <div class="d-flex align-items-stretch gap-2 shopping-top-strip">
           <div
             ref="listMenuRoot"
             class="dropdown flex-grow-1 min-w-0 list-picker shopping-list-picker-wrap"
@@ -615,8 +713,8 @@
             <button
               id="wish-list-picker-btn"
               type="button"
-              class="btn btn-sm btn-light border text-start w-100 d-flex align-items-center justify-content-between gap-2 py-2 shopping-list-picker-btn"
-              :disabled="!wishLists.length || wishListsLoading"
+              class="btn btn-light border-0 rounded-3 text-start w-100 d-flex align-items-center justify-content-between gap-2 py-2 px-3 shopping-list-picker-btn shopping-picker-trigger shadow-sm"
+              :disabled="wishListsLoading"
               aria-haspopup="true"
               :aria-expanded="listMenuOpen"
               @click.stop="toggleListMenu"
@@ -632,7 +730,7 @@
                   :title="`Creata da ${userLabel(currentWishListMeta.createdBy)}`"
                   aria-hidden="true"
                 />
-                <span class="text-truncate">{{
+                <span class="text-truncate fw-medium">{{
                   wishListDisplayName(currentWishListMeta)
                 }}</span>
               </span>
@@ -642,7 +740,7 @@
               >
             </button>
             <ul
-              class="dropdown-menu shadow-sm w-100 py-1"
+              class="dropdown-menu shadow-sm border-0 w-100 py-1"
               :class="{ show: listMenuOpen }"
               aria-labelledby="wish-list-picker-btn"
             >
@@ -666,83 +764,87 @@
               </li>
             </ul>
           </div>
-          <div class="d-flex gap-1 align-items-stretch shopping-list-toolbar">
+          <div
+            ref="listActionsMenuRoot"
+            class="dropdown flex-shrink-0 shopping-list-actions-dd"
+          >
             <button
+              ref="listActionsMoreBtnRef"
               type="button"
-              class="btn btn-sm btn-outline-primary d-inline-flex align-items-center justify-content-center shopping-toolbar-btn shopping-toolbar-icon-btn"
+              class="btn btn-light border-0 rounded-3 d-flex align-items-center justify-content-center shopping-more-btn shadow-sm"
               :disabled="wishListsLoading"
-              aria-label="Nuova lista"
-              title="Nuova lista"
-              @click="openCreateModal"
+              aria-haspopup="true"
+              :aria-expanded="listActionsMenuOpen"
+              aria-label="Altre azioni sulla lista"
+              @click.stop="toggleListActionsMenu"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
-                width="16"
-                height="16"
+                width="18"
+                height="18"
                 fill="currentColor"
                 viewBox="0 0 16 16"
                 aria-hidden="true"
               >
                 <path
-                  d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"
-                />
-              </svg>
-            </button>
-            <button
-              type="button"
-              class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center justify-content-center shopping-toolbar-btn shopping-toolbar-icon-btn"
-              :disabled="listToolbarListActionsDisabled"
-              title="Modifica nome lista"
-              aria-label="Modifica nome lista"
-              @click="openRenameModal"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="16"
-                height="16"
-                fill="currentColor"
-                viewBox="0 0 16 16"
-                aria-hidden="true"
-              >
-                <path
-                  d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5 13.5 4.5 14.5 3.5 12.5 1.5 11.207 2.5zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293l6.5-6.5zm-9.761 5.175-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 0 1 5 12.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.468-.325z"
-                />
-              </svg>
-            </button>
-            <button
-              type="button"
-              class="btn btn-sm btn-outline-danger d-inline-flex align-items-center justify-content-center shopping-toolbar-btn shopping-toolbar-icon-btn"
-              :disabled="listToolbarListActionsDisabled"
-              title="Elimina lista"
-              aria-label="Elimina lista"
-              @click="openDeleteListForSelected"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="16"
-                height="16"
-                fill="currentColor"
-                viewBox="0 0 16 16"
-                aria-hidden="true"
-              >
-                <path
-                  d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"
-                />
-                <path
-                  fill-rule="evenodd"
-                  d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"
+                  d="M9.5 13a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0zm0-5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0zm0-5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0z"
                 />
               </svg>
             </button>
           </div>
+          <Teleport to="body">
+            <ul
+              v-if="listActionsMenuOpen"
+              ref="listActionsMenuPanelRef"
+              class="dropdown-menu dropdown-menu-end show shadow border-0 py-1 list-actions-menu-floating"
+              :style="listActionsMenuStyle"
+              role="menu"
+            >
+              <li role="none">
+                <button
+                  type="button"
+                  class="dropdown-item small d-flex align-items-center gap-2"
+                  role="menuitem"
+                  :disabled="wishListsLoading"
+                  @click="openCreateModal"
+                >
+                  Nuova lista
+                </button>
+              </li>
+              <li><hr class="dropdown-divider my-1" /></li>
+              <li role="none">
+                <button
+                  type="button"
+                  class="dropdown-item small"
+                  role="menuitem"
+                  :disabled="listToolbarListActionsDisabled"
+                  @click="openRenameModal"
+                >
+                  Rinomina lista
+                </button>
+              </li>
+              <li role="none">
+                <button
+                  type="button"
+                  class="dropdown-item small text-danger"
+                  role="menuitem"
+                  :disabled="listToolbarListActionsDisabled"
+                  @click="openDeleteListForSelected"
+                >
+                  Elimina lista
+                </button>
+              </li>
+            </ul>
+          </Teleport>
         </div>
       </div>
 
       <div
         v-if="!wishLists.length && !wishListsLoading"
-        class="wish-empty-hint mb-3 small py-2 px-3 rounded-3"
+        class="alert alert-light border mb-3 small py-2"
       >
-        Nessuna lista ancora. Tocca <strong>+</strong> per iniziare.
+        Nessuna lista ancora. Apri il menu <strong>⋮</strong> accanto al
+        selettore e scegli <strong>Nuova lista</strong>.
       </div>
 
       <div
@@ -2469,6 +2571,17 @@
 
   .list-picker-row:hover {
     background-color: var(--bs-light, #f8f9fa);
+  }
+
+  /* Menu ⋮ azioni lista: Teleport + fixed (come lista spesa / todo) */
+  :global(.list-actions-menu-floating.dropdown-menu) {
+    position: fixed !important;
+    margin-top: 0 !important;
+    transform: none !important;
+    max-height: min(70dvh, 22rem);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: calc(0.35rem + env(safe-area-inset-bottom, 0px));
   }
 
   :global(.shopping-modal) {

@@ -8,9 +8,9 @@ import type {
   WishlistItemStatus,
 } from '@/types/wishlist'
 import { cleanProductTitle } from '@/lib/wishlistNormalize'
+import { authSession } from '@/auth/authSession'
 import {
   activeUser,
-  appUserSessionValid,
   currentGarden,
   groceryListDisplayName,
   refreshGardenContext,
@@ -125,21 +125,24 @@ async function fetchWishListsFromSupabase(silent: boolean) {
   const sb = getSupabaseClient()
   if (!sb) return
   if (!silent) wishListsLoading.value = true
-  const { data, error: qErr } = await sb
-    .from('wishlist_lists')
-    .select('id, created_at, created_by, title')
-    .order('created_at', { ascending: false })
-  if (!silent) wishListsLoading.value = false
-  if (qErr) {
-    error.value = qErr.message
-    return
+  try {
+    const { data, error: qErr } = await sb
+      .from('wishlist_lists')
+      .select('id, created_at, created_by, title')
+      .order('created_at', { ascending: false })
+    if (qErr) {
+      error.value = qErr.message
+      return
+    }
+    wishLists.value = (data ?? []).map((r: {
+      id: string
+      created_at: string
+      created_by: string
+      title?: string | null
+    }) => mapListRow(r))
+  } finally {
+    if (!silent) wishListsLoading.value = false
   }
-  wishLists.value = (data ?? []).map((r: {
-    id: string
-    created_at: string
-    created_by: string
-    title?: string | null
-  }) => mapListRow(r))
 }
 
 async function ensureSelectedWishListAfterFetch() {
@@ -169,22 +172,25 @@ async function fetchWishItemsFromSupabase(silent: boolean) {
   }
   if (!silent) loading.value = true
   error.value = null
-  const { data, error: qErr } = await sb
-    .from('wishlist_items')
-    .select(
-      'id, list_id, created_at, created_by, status, url, title, description, image_url, site_name, price_text, price_amount, currency, notes, preview_fetched_at, preview_note',
+  try {
+    const { data, error: qErr } = await sb
+      .from('wishlist_items')
+      .select(
+        'id, list_id, created_at, created_by, status, url, title, description, image_url, site_name, price_text, price_amount, currency, notes, preview_fetched_at, preview_note',
+      )
+      .eq('list_id', lid)
+      .order('created_at', { ascending: false })
+    if (qErr) {
+      error.value = qErr.message
+      items.value = []
+      return
+    }
+    items.value = (data ?? []).map((row) =>
+      mapRow(row as Record<string, unknown>),
     )
-    .eq('list_id', lid)
-    .order('created_at', { ascending: false })
-  if (!silent) loading.value = false
-  if (qErr) {
-    error.value = qErr.message
-    items.value = []
-    return
+  } finally {
+    if (!silent) loading.value = false
   }
-  items.value = (data ?? []).map((row) =>
-    mapRow(row as Record<string, unknown>),
-  )
 }
 
 function setupWishRealtimeChannel() {
@@ -230,7 +236,7 @@ export function ensureWishRealtimeConnected() {
 
 export async function refreshWishData(options?: { silent?: boolean }) {
   const sb = getSupabaseClient()
-  if (!sb || !appUserSessionValid.value) return
+  if (!sb || !authSession.value?.user) return
   const silent = options?.silent !== false
   await refreshGardenContext()
   await fetchWishListsFromSupabase(silent)

@@ -477,13 +477,20 @@
   }
 
   async function refreshTodoPageData() {
-    if (!isTodoCloud.value || !appUserSessionValid.value) return;
+    if (!isTodoCloud.value) return;
     await refreshTodoData({ silent: true });
     ensureTodoRealtimeConnected();
   }
 
+  watch(
+    appUserSessionValid,
+    (ok, wasOk) => {
+      if (ok && wasOk === false && isTodoCloud.value) void startTodoSync();
+    },
+  );
+
   onMounted(() => {
-    if (appUserSessionValid.value) void startTodoSync();
+    if (isTodoCloud.value) void startTodoSync();
     ensureTodoRealtimeConnected();
     document.addEventListener("pointerdown", onDocumentPointerDown, true);
     document.addEventListener("keydown", onDocumentKeydown, true);

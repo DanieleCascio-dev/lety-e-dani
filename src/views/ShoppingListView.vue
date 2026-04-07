@@ -460,10 +460,17 @@
   }
 
   async function refreshShoppingPageData() {
-    if (!isGroceryCloud.value || !appUserSessionValid.value) return;
+    if (!isGroceryCloud.value) return;
     await refreshGroceryData({ silent: true });
     ensureGroceryRealtimeConnected();
   }
+
+  watch(
+    appUserSessionValid,
+    (ok, wasOk) => {
+      if (ok && wasOk === false && isGroceryCloud.value) void refreshShoppingPageData();
+    },
+  );
 
   onMounted(() => {
     void refreshShoppingPageData();

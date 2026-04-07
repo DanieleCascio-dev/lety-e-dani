@@ -1,6 +1,7 @@
 import { computed, ref, watch } from 'vue'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import type { GroceryItem, GroceryListMeta, TodoItem, UserId } from '@/types/app'
+import { authSession } from '@/auth/authSession'
 import { getSupabaseClient } from '@/lib/supabase'
 import {
   activeUser,
@@ -116,21 +117,24 @@ async function fetchTodoListsFromSupabase(silent: boolean) {
   const sb = getSupabaseClient()
   if (!sb) return
   if (!silent) todoListsLoading.value = true
-  const { data, error } = await sb
-    .from('todo_lists')
-    .select('id, created_at, created_by, title')
-    .order('created_at', { ascending: false })
-  if (!silent) todoListsLoading.value = false
-  if (error) {
-    todosError.value = error.message
-    return
+  try {
+    const { data, error } = await sb
+      .from('todo_lists')
+      .select('id, created_at, created_by, title')
+      .order('created_at', { ascending: false })
+    if (error) {
+      todosError.value = error.message
+      return
+    }
+    todoLists.value = (data ?? []).map((r: {
+      id: string
+      created_at: string
+      created_by: string
+      title?: string | null
+    }) => mapListRow(r))
+  } finally {
+    if (!silent) todoListsLoading.value = false
   }
-  todoLists.value = (data ?? []).map((r: {
-    id: string
-    created_at: string
-    created_by: string
-    title?: string | null
-  }) => mapListRow(r))
 }
 
 async function ensureSelectedTodoListAfterFetch() {
@@ -153,29 +157,32 @@ async function fetchTodosFromSupabase(silent: boolean) {
     return
   }
   if (!silent) todosLoading.value = true
-  const { data, error } = await sb
-    .from('todo_items')
-    .select('id, text, done, added_by, list_id')
-    .eq('list_id', lid)
-    .order('created_at', { ascending: true })
-  if (!silent) todosLoading.value = false
-  if (error) {
-    todosError.value = error.message
-    return
+  try {
+    const { data, error } = await sb
+      .from('todo_items')
+      .select('id, text, done, added_by, list_id')
+      .eq('list_id', lid)
+      .order('created_at', { ascending: true })
+    if (error) {
+      todosError.value = error.message
+      return
+    }
+    todosError.value = null
+    const fallbackBy = activeUser.value
+    todos.value = ((data ?? []) as TodoRow[]).map((r) =>
+      normalizeTodoItem(
+        {
+          id: r.id,
+          text: r.text,
+          done: r.done,
+          addedBy: r.added_by === 'letizia' || r.added_by === 'daniele' ? r.added_by : fallbackBy,
+        },
+        fallbackBy,
+      ),
+    )
+  } finally {
+    if (!silent) todosLoading.value = false
   }
-  todosError.value = null
-  const fallbackBy = activeUser.value
-  todos.value = ((data ?? []) as TodoRow[]).map((r) =>
-    normalizeTodoItem(
-      {
-        id: r.id,
-        text: r.text,
-        done: r.done,
-        addedBy: r.added_by === 'letizia' || r.added_by === 'daniele' ? r.added_by : fallbackBy,
-      },
-      fallbackBy,
-    ),
-  )
 }
 
 function setupTodoRealtimeChannel() {
@@ -213,7 +220,7 @@ export function ensureTodoRealtimeConnected() {
 
 export async function refreshTodoData(options?: { silent?: boolean }) {
   const sb = getSupabaseClient()
-  if (!sb || !appUserSessionValid.value) return
+  if (!sb || !authSession.value?.user) return
   const silent = options?.silent !== false
   await refreshGardenContext()
   await fetchTodoListsFromSupabase(silent)

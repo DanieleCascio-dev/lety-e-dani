@@ -368,21 +368,24 @@ async function fetchGroceryListsFromSupabase(silent: boolean) {
   const sb = getSupabaseClient()
   if (!sb) return
   if (!silent) groceryListsLoading.value = true
-  const { data, error } = await sb
-    .from('grocery_lists')
-    .select('id, created_at, created_by, title')
-    .order('created_at', { ascending: false })
-  if (!silent) groceryListsLoading.value = false
-  if (error) {
-    groceriesError.value = error.message
-    return
+  try {
+    const { data, error } = await sb
+      .from('grocery_lists')
+      .select('id, created_at, created_by, title')
+      .order('created_at', { ascending: false })
+    if (error) {
+      groceriesError.value = error.message
+      return
+    }
+    groceryLists.value = (data ?? []).map((r: {
+      id: string
+      created_at: string
+      created_by: string
+      title?: string | null
+    }) => mapListRow(r))
+  } finally {
+    if (!silent) groceryListsLoading.value = false
   }
-  groceryLists.value = (data ?? []).map((r: {
-    id: string
-    created_at: string
-    created_by: string
-    title?: string | null
-  }) => mapListRow(r))
 }
 
 async function ensureSelectedListAfterFetch() {
@@ -405,29 +408,32 @@ async function fetchGroceriesFromSupabase(silent: boolean) {
     return
   }
   if (!silent) groceriesLoading.value = true
-  const { data, error } = await sb
-    .from('grocery_items')
-    .select('id, text, done, added_by, list_id')
-    .eq('list_id', lid)
-    .order('created_at', { ascending: true })
-  if (!silent) groceriesLoading.value = false
-  if (error) {
-    groceriesError.value = error.message
-    return
+  try {
+    const { data, error } = await sb
+      .from('grocery_items')
+      .select('id, text, done, added_by, list_id')
+      .eq('list_id', lid)
+      .order('created_at', { ascending: true })
+    if (error) {
+      groceriesError.value = error.message
+      return
+    }
+    groceriesError.value = null
+    const fallbackBy = activeUser.value
+    groceries.value = ((data ?? []) as GroceryRow[]).map((r) =>
+      normalizeGroceryItem(
+        {
+          id: r.id,
+          text: r.text,
+          done: r.done,
+          addedBy: String(r.added_by || '').trim() || fallbackBy,
+        },
+        fallbackBy,
+      ),
+    )
+  } finally {
+    if (!silent) groceriesLoading.value = false
   }
-  groceriesError.value = null
-  const fallbackBy = activeUser.value
-  groceries.value = ((data ?? []) as GroceryRow[]).map((r) =>
-    normalizeGroceryItem(
-      {
-        id: r.id,
-        text: r.text,
-        done: r.done,
-        addedBy: String(r.added_by || '').trim() || fallbackBy,
-      },
-      fallbackBy,
-    ),
-  )
 }
 
 function setupGroceryRealtimeChannel() {
@@ -831,7 +837,7 @@ export const appUserSessionValid = ref(false)
  */
 export async function refreshGroceryData(options?: { silent?: boolean }) {
   const sb = getSupabaseClient()
-  if (!sb || !appUserSessionValid.value) return
+  if (!sb || !authSession.value?.user) return
   const silent = options?.silent !== false
   await loadCurrentGardenFromSupabase()
   await fetchGroceryListsFromSupabase(silent)
