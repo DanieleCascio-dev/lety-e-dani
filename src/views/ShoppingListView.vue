@@ -1619,8 +1619,9 @@
   @supports (-webkit-touch-callout: none) {
     .shopping-items-list {
       overflow: hidden;
-      /* Niente translateZ qui: su iOS promuove un layer che può alterare il compositing
-         dello shell dietro la colonna (Todo non mostra lo stesso effetto con h1 sopra). */
+      -webkit-backface-visibility: hidden;
+      backface-visibility: hidden;
+      transform: translateZ(0);
     }
   }
 

@@ -247,8 +247,9 @@ html[data-theme="sunflower-blackcat"] ::selection {
 
 /*
  * Shell: base marrone + pattern acquerello (PNG chiaro).
- * `soft-light` su WebKit (Safari iOS) risulta molto più chiaro che su Blink; un solo blend
- * su tutte le piattaforme evita differenze tra route e tra browser.
+ * `soft-light` / `overlay` su WebKit iOS tendono a far emergere troppo la chiarezza del PNG.
+ * `multiply` su fondo scuro abbassa la luminanza del tile in modo più coerente tra Safari e Chrome
+ * (evita la spesa “lavata” mentre il Todo può sembrare diverso solo per compositing locale).
  */
 html[data-theme="sunflower-blackcat"] .app-shell {
   background-color: var(--theme-app-shell-bg) !important;
@@ -256,7 +257,7 @@ html[data-theme="sunflower-blackcat"] .app-shell {
   background-repeat: repeat !important;
   background-size: var(--theme-shell-pattern-size) !important;
   background-position: 0 0;
-  background-blend-mode: overlay;
+  background-blend-mode: multiply;
 }
 
 html[data-theme="sunflower-blackcat"] .app-top-nav {
