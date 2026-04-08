@@ -9,6 +9,7 @@
   import NavHeartIcon from "@/components/icons/NavHeartIcon.vue";
   import NavRestaurantIcon from "@/components/icons/NavRestaurantIcon.vue";
   import NavTodoIcon from "@/components/icons/NavTodoIcon.vue";
+  import NavCalendarIcon from "@/components/icons/NavCalendarIcon.vue";
 
   const gardenTitle = computed(() => {
     const n = currentGarden.value?.name?.trim();
@@ -99,6 +100,23 @@
               <span class="fw-semibold">Todo</span>
               <span class="small text-secondary d-none d-sm-inline"
                 >Attività e liste</span
+              >
+            </span>
+          </RouterLink>
+        </li>
+        <li>
+          <RouterLink
+            to="/calendario"
+            class="home-tile d-flex align-items-center gap-3 text-decoration-none text-body rounded-3 border bg-white px-3 py-3"
+            aria-label="Calendario"
+          >
+            <span class="home-tile-icon text-primary" aria-hidden="true">
+              <NavCalendarIcon />
+            </span>
+            <span class="d-flex flex-column min-w-0 text-start flex-grow-1">
+              <span class="fw-semibold">Calendario</span>
+              <span class="small text-secondary d-none d-sm-inline"
+                >Impegni condivisi</span
               >
             </span>
           </RouterLink>

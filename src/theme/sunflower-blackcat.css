@@ -728,6 +728,48 @@ html[data-theme="sunflower-blackcat"]
   }
 }
 
+/* ─── Calendario ─── */
+html[data-theme="sunflower-blackcat"] .calendar-main {
+  --cal-panel-bg: var(--theme-surface-1);
+  --cal-today-text: var(--theme-text-on-primary);
+}
+
+html[data-theme="sunflower-blackcat"] .cal-grid-wrap {
+  background-color: var(--theme-surface-1) !important;
+  border-color: var(--theme-border-soft) !important;
+  box-shadow: var(--theme-shadow-soft);
+}
+
+html[data-theme="sunflower-blackcat"] .cal-grid {
+  background-color: transparent;
+}
+
+html[data-theme="sunflower-blackcat"] .cal-sheet {
+  background-color: var(--theme-surface-1) !important;
+  box-shadow: 0 -4px 24px rgba(12, 8, 6, 0.32);
+}
+
+html[data-theme="sunflower-blackcat"] .cal-swipe-front {
+  background-color: var(--theme-surface-1) !important;
+}
+
+html[data-theme="sunflower-blackcat"] .cal-event-row {
+  border-color: var(--theme-border-soft) !important;
+}
+
+html[data-theme="sunflower-blackcat"] .cal-cell:hover {
+  background-color: rgba(212, 184, 140, 0.1);
+}
+
+html[data-theme="sunflower-blackcat"] .cal-cell--selected {
+  background-color: rgba(212, 184, 140, 0.14);
+  box-shadow: inset 0 0 0 2px var(--theme-color-primary);
+}
+
+html[data-theme="sunflower-blackcat"] .cal-sheet-backdrop {
+  background: rgba(36, 32, 25, 0.62);
+}
+
 /* Transizioni tema */
 html[data-theme="sunflower-blackcat"] body,
 html[data-theme="sunflower-blackcat"] .app-shell,
@@ -735,7 +777,8 @@ html[data-theme="sunflower-blackcat"] .app-top-nav,
 html[data-theme="sunflower-blackcat"] .card,
 html[data-theme="sunflower-blackcat"] ul.shopping-items-list,
 html[data-theme="sunflower-blackcat"] a.home-tile,
-html[data-theme="sunflower-blackcat"] .home-hero {
+html[data-theme="sunflower-blackcat"] .home-hero,
+html[data-theme="sunflower-blackcat"] .cal-sheet {
   transition:
     background-color 0.22s ease,
     color 0.18s ease,

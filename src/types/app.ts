@@ -55,3 +55,15 @@ export type TodoListMeta = GroceryListMeta
 
 /** Voce todo (stessa forma di un articolo spesa). */
 export type TodoItem = GroceryItem
+
+/** Evento calendario condiviso nel garden. */
+export interface CalendarEvent {
+  id: string
+  title: string
+  notes: string | null
+  startsAt: string
+  endsAt: string
+  createdBy: UserId
+  assignedTo: UserId
+  createdAt: string
+}

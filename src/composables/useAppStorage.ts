@@ -641,18 +641,26 @@ async function hydrateGardenPeerProfilesFromGarden() {
   const userIds = [...new Set(members.map((m: { user_id: string }) => m.user_id))]
   const { data: rows, error } = await sb
     .from('app_user')
-    .select('app_role, display_name, avatar_url')
+    .select('app_role, display_name, avatar_url, icon_color, icon_shape')
     .in('user_id', userIds)
     .abortSignal(queryAbortSignal())
   if (error || !rows?.length) return
   for (const raw of rows) {
-    const row = raw as { app_role: string; display_name: string | null; avatar_url: string | null }
+    const row = raw as {
+      app_role: string
+      display_name: string | null
+      avatar_url: string | null
+      icon_color: string | null
+      icon_shape: string | null
+    }
     const role = String(row.app_role ?? '').trim()
     if (!role) continue
     applyAppUserRowToProfiles({
       app_role: role,
       display_name: row.display_name,
       avatar_url: row.avatar_url,
+      icon_color: row.icon_color,
+      icon_shape: row.icon_shape,
     })
   }
 }

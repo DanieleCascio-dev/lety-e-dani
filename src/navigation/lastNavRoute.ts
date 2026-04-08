@@ -1,8 +1,8 @@
 const KEY = 'lety-dani:last-nav-route'
 
-export type SavedMainNavRoute = 'home' | 'shopping' | 'wishlist' | 'todos' | 'restaurants'
+export type SavedMainNavRoute = 'home' | 'shopping' | 'wishlist' | 'todos' | 'restaurants' | 'calendar'
 
-const MAIN: SavedMainNavRoute[] = ['home', 'shopping', 'wishlist', 'todos', 'restaurants']
+const MAIN: SavedMainNavRoute[] = ['home', 'shopping', 'wishlist', 'todos', 'restaurants', 'calendar']
 
 export function isSavedMainNavRoute(s: string | null): s is SavedMainNavRoute {
   return (
@@ -10,7 +10,8 @@ export function isSavedMainNavRoute(s: string | null): s is SavedMainNavRoute {
     s === 'shopping' ||
     s === 'wishlist' ||
     s === 'todos' ||
-    s === 'restaurants'
+    s === 'restaurants' ||
+    s === 'calendar'
   )
 }
 

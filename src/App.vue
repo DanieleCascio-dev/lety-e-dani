@@ -17,6 +17,7 @@
   } from "@/composables/useAppStorage";
   import { useTheme } from "@/composables/useTheme";
   import { refreshTodoData, resetTodoState } from "@/composables/useTodoLists";
+  import { refreshCalendarData, resetCalendarState } from "@/composables/useCalendarEvents";
   import { refreshWishData, resetWishlistState } from "@/composables/useWishlist";
   import { getSupabaseClient } from "@/lib/supabase";
   import FeatureAnnouncementModal from "@/components/FeatureAnnouncementModal.vue";
@@ -29,6 +30,7 @@
   import NavHomeIcon from "@/components/icons/NavHomeIcon.vue";
   import NavRestaurantIcon from "@/components/icons/NavRestaurantIcon.vue";
   import NavTodoIcon from "@/components/icons/NavTodoIcon.vue";
+  import NavCalendarIcon from "@/components/icons/NavCalendarIcon.vue";
 
   /** Per v-bind() nel CSS: url("...") con path risolto da Vite */
   const danyAvatarBg = `url("${danyAvatarUrl}")`;
@@ -76,6 +78,7 @@
     if (!ok) {
       resetTodoState();
       resetWishlistState();
+      resetCalendarState();
     }
   });
 
@@ -202,6 +205,7 @@
         refreshGroceryData({ silent: true, skipGarden: true }),
         refreshTodoData({ silent: true, skipGarden: true }),
         refreshWishData({ silent: true, skipGarden: true }),
+        refreshCalendarData({ silent: true, skipGarden: true }),
       ]);
     })();
   }
@@ -302,6 +306,17 @@
               >
                 <span class="app-subnav-icon"><NavRestaurantIcon /></span>
                 <span class="app-subnav-label d-none d-sm-block">Locali</span>
+              </RouterLink>
+            </li>
+            <li class="flex-shrink-0">
+              <RouterLink
+                class="app-subnav-item"
+                active-class="app-subnav-item--active"
+                :to="{ name: 'calendar' }"
+                aria-label="Calendario"
+              >
+                <span class="app-subnav-icon"><NavCalendarIcon /></span>
+                <span class="app-subnav-label d-none d-sm-block">Calendario</span>
               </RouterLink>
             </li>
           </ul>
@@ -476,42 +491,38 @@
     >
       <template #title>Cosa c’è di nuovo</template>
       <p class="mb-3 text-body-secondary">
-        Abbiamo aggiunto qualcosa di nuovo e ritoccato il resto per usarlo ancora più comodamente dal
-        telefono.
+        Novità fresca: il <strong>Calendario</strong> condiviso! Trovi tutto qui sotto.
       </p>
-      <p class="fw-semibold mb-2">Desideri</p>
+      <p class="fw-semibold mb-2">Calendario</p>
       <ul class="mb-3 ps-3">
         <li class="mb-2">
-          Una <strong>lista desideri condivisa</strong>: tieni i prodotti che ti piacciono, da
-          qualsiasi negozio online, tutti insieme — niente app separate da ricordare.
+          Ora avete un <strong>calendario condiviso</strong>: ognuno può segnare i propri impegni
+          e vedere quelli dell’altro, tutto nello stesso posto.
         </li>
         <li class="mb-2">
-          <strong>Incolla il link</strong> di una pagina prodotto: dove è possibile, compaiono subito
-          titolo, immagine e prezzo, così capisci a colpo d’occhio cosa stai salvando.
+          <strong>Tocca un giorno</strong> nella griglia per aprirlo: compare un pannello in basso
+          con tutti gli impegni di quel giorno. Da lì puoi aggiungerne uno nuovo col
+          bottone «+ Nuovo».
         </li>
         <li class="mb-2">
-          <strong>Più liste</strong> con nomi tuoi: creale e rinominal dal menu e passa dall’una
-          all’altra con un tap. Si aggiorna per entrambi, come la spesa e i to-do.
+          Per <strong>creare un impegno</strong> scegli il titolo, la data e l’ora di inizio e
+          fine, e a chi è assegnato — basta toccare il nome. Puoi anche aggiungere una nota.
         </li>
         <li class="mb-2">
-          Con i <strong>filtri</strong> in alto puoi vedere cos’è ancora in lista, cos’hai già preso e
-          cos’hai messo da parte — più tutto insieme, se ti serve.
+          Per <strong>modificare o eliminare</strong> un impegno, scorri la riga verso destra o
+          sinistra — come già fai nella spesa e nei to-do.
         </li>
         <li class="mb-2">
-          Sul telefono puoi <strong>far scorrere</strong> una card a destra o a sinistra per le
-          azioni rapide; sulle card puoi anche lasciarti <strong>una nota</strong> (taglia, colore,
-          promozione…).
+          Puoi <strong>scorrere col dito</strong> a destra o sinistra sulla griglia per
+          cambiare mese, oppure usare le freccette in alto.
         </li>
-        <li class="mb-2">Nuovo tema scuro per iò sito, attivabile nella sezione profilo</li>
+        <li class="mb-2">
+          Con il <strong>filtro</strong> in alto a destra puoi vedere solo gli impegni di una
+          persona.
+        </li>
       </ul>
-      <p class="fw-semibold mb-2">Spesa e To-do</p>
-      <p class="mb-3 text-body-secondary">
-        Anche qui, sul telefono: <strong>scorri la riga</strong> verso un lato o l’altro per
-        <strong>modificare</strong> o <strong>togliere</strong> un elemento senza aprire menu a
-        cascata.
-      </p>
       <p class="mb-0 small text-secondary">
-        La sezione <strong>Desideri</strong> è nella barra in alto, accanto a Home e Spesa. Buona
+        Trovi il <strong>Calendario</strong> nella barra in alto, accanto a Locali. Buona
         organizzazione!
       </p>
     </FeatureAnnouncementModal>
