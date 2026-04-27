@@ -9,13 +9,22 @@ import {
   watch,
 } from 'vue'
 import { useRoute } from 'vue-router'
-import { getSupabaseClient } from '@/lib/supabase'
 import { useAppStorage } from '@/composables/useAppStorage'
-import { useVeganRestaurantSearch } from '@/composables/useVeganRestaurantSearch'
 import { useRestaurantPlaceSuggest, type PlaceDetailsResult } from '@/composables/useRestaurantPlaceSuggest'
+import {
+  coordsForSearchItem,
+  searchResultPlaceKey,
+  useRestaurantsDiscovery,
+} from '@/composables/useRestaurantsDiscovery'
+import {
+  placeDetailsToSearchItem,
+  savedRestaurantToSearchItem,
+  useRestaurantsSaved,
+} from '@/composables/useRestaurantsSaved'
 import OurRatingStars from '@/components/OurRatingStars.vue'
 import RestaurantMiniMap from '@/components/RestaurantMiniMap.vue'
 import RestaurantPlaceCard from '@/components/RestaurantPlaceCard.vue'
+import RestaurantMapSheet from '@/components/restaurants/RestaurantMapSheet.vue'
 import type {
   RestaurantMapMarker,
   SavedRestaurant,
@@ -26,10 +35,6 @@ const { activeUser, profileFor, currentGarden, refreshGardenContext } = useAppSt
 const route = useRoute()
 
 /** Evita race: più loadSaved in parallelo o completamento dopo navigazione via. */
-let loadSavedSeq = 0
-
-const { loading: searchLoading, error: searchError, data: searchData, search } =
-  useVeganRestaurantSearch()
 
 const {
   loading: suggestLoading,
@@ -38,9 +43,45 @@ const {
   fetchPlaceDetails,
 } = useRestaurantPlaceSuggest()
 
-const listLoading = ref(false)
-const listError = ref<string | null>(null)
-const savedList = ref<SavedRestaurant[]>([])
+const {
+  listLoading,
+  listError,
+  savedList,
+  loadSaved,
+  addPlace,
+  addSearchItem,
+  updateOurRating,
+  removeSaved,
+  cancelPendingLoads,
+} = useRestaurantsSaved({ activeUser, currentGarden, refreshGardenContext })
+
+const {
+  searchError,
+  searchData,
+  radiusKm,
+  searchStrictMode,
+  userPos,
+  geoMessage,
+  discoverOriginMode,
+  discoverLocationQuery,
+  discoverLocationSuggestions,
+  discoverLocationOpen,
+  discoverSelectedCenter,
+  searchPanelBusy,
+  discoverGpsLooksActive,
+  discoverMapFullscreenTitle,
+  searchMapMarkers,
+  restaurantsWithoutMapCoords,
+  searchListWithoutCoordsText,
+  pickDiscoverLocation,
+  onDiscoverLocationBlur,
+  onDiscoverLocationFocus,
+  onDiscoverGpsClick,
+  setDiscoverOriginNearMe,
+  requestPosition,
+  runSearch,
+  cleanupDiscoveryTimers,
+} = useRestaurantsDiscovery({ fetchAutocomplete, fetchPlaceDetails })
 
 /** Ricerca nome locale (autocomplete) */
 const nameQuery = ref('')
@@ -52,41 +93,6 @@ const savedFormError = ref<string | null>(null)
 
 let acTimer: ReturnType<typeof setTimeout> | null = null
 let blurTimer: ReturnType<typeof setTimeout> | null = null
-
-const radiusKm = ref(10)
-/** Solo classificazione Google vegan/vegetarian (nessun fallback da nome). */
-const searchStrictMode = ref(false)
-const userPos = ref<{ lat: number; lng: number } | null>(null)
-const geoMessage = ref<string | null>(null)
-
-/** Centro ricerca in tab Scopri: GPS vs luogo scelto (Places). */
-type DiscoverOriginMode = 'near_me' | 'other'
-const discoverOriginMode = ref<DiscoverOriginMode>('near_me')
-const discoverLocationQuery = ref('')
-const discoverLocationSuggestions = ref<Awaited<ReturnType<typeof fetchAutocomplete>>>([])
-const discoverLocationOpen = ref(false)
-const discoverSelectedCenter = ref<{ lat: number; lng: number; label: string } | null>(null)
-/** True dal click su Cerca fino a fine run (geo + API), per feedback immediato. */
-const searchRunBusy = ref(false)
-
-let discoverLocTimer: ReturnType<typeof setTimeout> | null = null
-let discoverBlurTimer: ReturnType<typeof setTimeout> | null = null
-/** Evita che il watch su discoverLocationQuery azzeri il centro appena scelto. */
-let skipDiscoverQueryWatchReset = false
-
-const searchPanelBusy = computed(() => searchLoading.value || searchRunBusy.value)
-
-const discoverGpsLooksActive = computed(
-  () => discoverOriginMode.value === 'near_me' && userPos.value != null,
-)
-
-const discoverMapFullscreenTitle = computed(() => {
-  if (discoverOriginMode.value === 'other' && discoverSelectedCenter.value?.label) {
-    const t = discoverSelectedCenter.value.label.trim()
-    return t.length > 42 ? `Intorno a ${t.slice(0, 40)}…` : `Intorno a ${t}`
-  }
-  return 'Risultati vicino a te'
-})
 
 const addingFromSearchId = ref<string | null>(null)
 
@@ -162,106 +168,6 @@ watch(mainTab, () => {
   discoverMapFullscreenOpen.value = false
 })
 
-function mapRow(r: {
-  id: string
-  created_at: string
-  created_by: string
-  name: string | null
-  maps_url: string
-  rating: number
-  place_id?: string | null
-  address?: string | null
-  category_label?: string | null
-  google_rating?: number | null
-  google_review_count?: number | null
-  extra_notes?: string | null
-  latitude?: number | null
-  longitude?: number | null
-}): SavedRestaurant {
-  const role = (String(r.created_by ?? '').trim() || 'daniele') as SavedRestaurant['createdBy']
-  return {
-    id: r.id,
-    createdAt: r.created_at,
-    createdBy: role,
-    name: (r.name ?? '').trim(),
-    mapsUrl: r.maps_url,
-    rating: r.rating,
-    placeId: r.place_id ?? null,
-    address: r.address ?? null,
-    categoryLabel: r.category_label ?? null,
-    googleRating: r.google_rating ?? null,
-    googleReviewCount: r.google_review_count ?? null,
-    extraNotes: r.extra_notes ?? null,
-    latitude: r.latitude ?? null,
-    longitude: r.longitude ?? null,
-  }
-}
-
-function savedToItem(r: SavedRestaurant): VeganRestaurantSearchItem {
-  return {
-    name: r.name,
-    address: r.address ?? '',
-    mapsUrl: r.mapsUrl,
-    notes: r.extraNotes ?? '',
-    latitude: r.latitude ?? null,
-    longitude: r.longitude ?? null,
-    placeId: r.placeId,
-    rating: r.googleRating ?? null,
-    userRatingCount: r.googleReviewCount ?? null,
-    distanceKm: null,
-    categoryLabel: r.categoryLabel ?? null,
-  }
-}
-
-function detailsToItem(d: PlaceDetailsResult): VeganRestaurantSearchItem {
-  return {
-    name: d.name,
-    address: d.address,
-    mapsUrl: d.mapsUrl,
-    notes: d.notes,
-    latitude: d.latitude,
-    longitude: d.longitude,
-    placeId: d.placeId,
-    rating: d.googleRating,
-    userRatingCount: d.googleReviewCount,
-    distanceKm: null,
-    categoryLabel: d.categoryLabel,
-  }
-}
-
-async function loadSaved() {
-  const seq = ++loadSavedSeq
-  listError.value = null
-  listLoading.value = true
-  try {
-    const sb = getSupabaseClient()
-    if (!sb) {
-      savedList.value = []
-      listError.value =
-        'Salvare i ristoranti richiede Supabase e login. Configura .env.local e accedi.'
-      return
-    }
-    await refreshGardenContext()
-    const { data, error } = await sb
-      .from('saved_restaurants')
-      .select(
-        'id, created_at, created_by, name, maps_url, rating, place_id, address, category_label, google_rating, google_review_count, extra_notes, latitude, longitude',
-      )
-      .order('created_at', { ascending: false })
-    if (seq !== loadSavedSeq) return
-    if (error) {
-      listError.value = error.message
-      savedList.value = []
-      return
-    }
-    savedList.value = (data ?? []).map((row) =>
-      mapRow(row as Parameters<typeof mapRow>[0]),
-    )
-  } finally {
-    if (seq === loadSavedSeq) listLoading.value = false
-  }
-}
-
 function resetPendingForm() {
   pendingPlace.value = null
   nameQuery.value = ''
@@ -289,23 +195,6 @@ watch(nameQuery, (q) => {
   }, 320)
 })
 
-watch(discoverLocationQuery, (q) => {
-  if (!skipDiscoverQueryWatchReset) discoverSelectedCenter.value = null
-  if (discoverLocTimer) clearTimeout(discoverLocTimer)
-  const t = q.trim()
-  if (t.length < 2) {
-    discoverLocationSuggestions.value = []
-    discoverLocationOpen.value = false
-    return
-  }
-  discoverLocTimer = setTimeout(async () => {
-    discoverLocationSuggestions.value = await fetchAutocomplete(t, undefined, undefined, {
-      mode: 'geo',
-    })
-    discoverLocationOpen.value = discoverLocationSuggestions.value.length > 0
-  }, 320)
-})
-
 async function pickSuggestion(placeId: string) {
   savedFormError.value = null
   suggestionsOpen.value = false
@@ -313,62 +202,6 @@ async function pickSuggestion(placeId: string) {
   if (!d) return
   pendingPlace.value = d
   nameQuery.value = d.name
-}
-
-async function pickDiscoverLocation(placeId: string) {
-  geoMessage.value = null
-  discoverLocationOpen.value = false
-  const d = await fetchPlaceDetails(placeId)
-  if (!d) return
-  if (d.latitude == null || d.longitude == null) {
-    geoMessage.value =
-      'Coordinate non disponibili per questo luogo. Prova un altro indirizzo o una città.'
-    return
-  }
-  discoverSelectedCenter.value = {
-    lat: d.latitude,
-    lng: d.longitude,
-    label: (d.name || d.address || discoverLocationQuery.value).trim() || 'Luogo scelto',
-  }
-  skipDiscoverQueryWatchReset = true
-  discoverLocationQuery.value = d.name
-    ? d.address
-      ? `${d.name} · ${d.address}`
-      : d.name
-    : d.address || discoverLocationQuery.value
-  void nextTick().then(() => {
-    skipDiscoverQueryWatchReset = false
-  })
-}
-
-function onDiscoverLocationBlur() {
-  discoverBlurTimer = setTimeout(() => {
-    discoverLocationOpen.value = false
-  }, 200)
-}
-
-function onDiscoverLocationFocus() {
-  if (discoverBlurTimer) clearTimeout(discoverBlurTimer)
-  if (
-    discoverLocationQuery.value.trim().length >= 2 &&
-    discoverLocationSuggestions.value.length
-  ) {
-    discoverLocationOpen.value = true
-  }
-}
-
-async function onDiscoverGpsClick() {
-  discoverOriginMode.value = 'near_me'
-  try {
-    await requestPosition()
-  } catch {
-    /* geoMessage già impostato */
-  }
-}
-
-function setDiscoverOriginNearMe() {
-  discoverOriginMode.value = 'near_me'
-  geoMessage.value = null
 }
 
 function onNameBlur() {
@@ -387,159 +220,34 @@ function onNameFocus() {
 async function submitPendingToList() {
   savedFormError.value = null
   if (!pendingPlace.value) {
-    savedFormError.value = 'Scegli un locale dall’elenco mentre digiti il nome.'
+    savedFormError.value = "Scegli un locale dall'elenco mentre digiti il nome."
     return
   }
-  const d = pendingPlace.value
-  const sb = getSupabaseClient()
-  if (!sb) {
-    savedFormError.value = 'Supabase non configurato.'
-    return
-  }
-  if (d.placeId && savedList.value.some((s) => s.placeId === d.placeId)) {
-    savedFormError.value = 'Questo locale è già nella lista.'
-    return
-  }
-  const rating = Math.min(5, Math.max(1, Math.round(formRating.value)))
-  const gid = currentGarden.value?.id
-  if (!gid) {
-    savedFormError.value =
-      'Nessuno spazio assegnato. Chiedi a un amministratore di aggiungerti a un garden.'
-    return
-  }
-  const { error } = await sb.from('saved_restaurants').insert({
-    created_by: activeUser.value,
-    garden_id: gid,
-    name: d.name,
-    maps_url: d.mapsUrl,
-    rating,
-    place_id: d.placeId,
-    address: d.address || null,
-    category_label: d.categoryLabel || null,
-    google_rating: d.googleRating,
-    google_review_count: d.googleReviewCount,
-    extra_notes: d.notes || null,
-    latitude: d.latitude,
-    longitude: d.longitude,
-  })
-  if (error) {
-    savedFormError.value = error.message
+  const result = await addPlace(pendingPlace.value, formRating.value)
+  if (!result.ok) {
+    savedFormError.value = result.error ?? 'Impossibile salvare il locale.'
     return
   }
   resetPendingForm()
-  await loadSaved()
-}
-
-const ratingDebounce: Record<string, ReturnType<typeof setTimeout>> = {}
-
-async function persistOurRating(id: string, value: number) {
-  const sb = getSupabaseClient()
-  if (!sb) return
-  const rating = Math.min(5, Math.max(1, Math.round(value)))
-  const { error } = await sb.from('saved_restaurants').update({ rating }).eq('id', id)
-  if (error) listError.value = error.message
 }
 
 function onOurRatingUpdate(id: string, value: number) {
-  const rating = Math.min(5, Math.max(1, Math.round(value)))
-  const row = savedList.value.find((x) => x.id === id)
-  if (row) row.rating = rating
-  if (ratingDebounce[id]) clearTimeout(ratingDebounce[id])
-  ratingDebounce[id] = setTimeout(() => {
-    void persistOurRating(id, rating)
-  }, 450)
+  updateOurRating(id, value)
 }
-
-async function removeSaved(id: string): Promise<boolean> {
-  listError.value = null
-  const sb = getSupabaseClient()
-  if (!sb) {
-    listError.value = 'Supabase non configurato.'
-    return false
-  }
-  const prev = savedList.value.slice()
-  savedList.value = savedList.value.filter((x) => x.id !== id)
-  const { error } = await sb.from('saved_restaurants').delete().eq('id', id)
-  if (error) {
-    savedList.value = prev
-    listError.value = error.message
-    return false
-  }
-  return true
-}
-
-function isAlreadySaved(item: VeganRestaurantSearchItem): boolean {
-  const pid = item.placeId
-  if (pid && savedList.value.some((s) => s.placeId === pid)) return true
-  return savedList.value.some((s) => s.mapsUrl === item.mapsUrl)
-}
-
 async function addFromSearch(item: VeganRestaurantSearchItem) {
   savedFormError.value = null
   const key = item.placeId ?? item.mapsUrl
   addingFromSearchId.value = key
   try {
-    if (isAlreadySaved(item)) {
-      savedFormError.value = 'Questo locale è già nella lista.'
-      return
+    const result = await addSearchItem(item)
+    if (!result.ok) {
+      savedFormError.value = result.error ?? 'Impossibile aggiungere il locale.'
     }
-    const sb = getSupabaseClient()
-    if (!sb) {
-      savedFormError.value = 'Supabase non configurato.'
-      return
-    }
-    const gid = currentGarden.value?.id
-    if (!gid) {
-      savedFormError.value =
-        'Nessuno spazio assegnato. Chiedi a un amministratore di aggiungerti a un garden.'
-      return
-    }
-    const { error } = await sb.from('saved_restaurants').insert({
-      created_by: activeUser.value,
-      garden_id: gid,
-      name: item.name,
-      maps_url: item.mapsUrl,
-      rating: 3,
-      place_id: item.placeId ?? null,
-      address: item.address || null,
-      category_label: item.categoryLabel ?? null,
-      google_rating: item.rating ?? null,
-      google_review_count: item.userRatingCount ?? null,
-      extra_notes: item.notes || null,
-      latitude: item.latitude,
-      longitude: item.longitude,
-    })
-    if (error) {
-      savedFormError.value = error.message
-      return
-    }
-    await loadSaved()
   } finally {
     addingFromSearchId.value = null
   }
 }
 
-function coordsForSearchItem(r: VeganRestaurantSearchItem) {
-  if (r.latitude != null && r.longitude != null) {
-    if (
-      r.latitude >= -90 &&
-      r.latitude <= 90 &&
-      r.longitude >= -180 &&
-      r.longitude <= 180
-    ) {
-      return { lat: r.latitude, lng: r.longitude }
-    }
-  }
-  return null
-}
-
-function searchResultPlaceKey(
-  item: VeganRestaurantSearchItem,
-  idx: number,
-): string {
-  const base = item.placeId ?? item.mapsUrl ?? `idx-${idx}`
-  return `sr-${String(base).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 120)}`
-}
 
 const expandedSearchKeys = ref<Set<string>>(new Set())
 
@@ -607,52 +315,6 @@ function onSearchMapPlaceClick(placeKey: string) {
   }, 2800)
 }
 
-const searchMapMarkers = computed((): RestaurantMapMarker[] => {
-  const out: RestaurantMapMarker[] = []
-  if (discoverOriginMode.value === 'near_me' && userPos.value) {
-    out.push({
-      lat: userPos.value.lat,
-      lng: userPos.value.lng,
-      kind: 'user',
-      label: 'Tu',
-    })
-  } else if (
-    discoverOriginMode.value === 'other' &&
-    discoverSelectedCenter.value
-  ) {
-    const lab = discoverSelectedCenter.value.label.trim() || 'Centro ricerca'
-    out.push({
-      lat: discoverSelectedCenter.value.lat,
-      lng: discoverSelectedCenter.value.lng,
-      kind: 'user',
-      label: lab.length > 28 ? `${lab.slice(0, 26)}…` : lab,
-    })
-  }
-  const list = searchData.value?.restaurants ?? []
-  for (let i = 0; i < list.length; i++) {
-    const r = list[i]!
-    const c = coordsForSearchItem(r)
-    if (c) {
-      out.push({
-        lat: c.lat,
-        lng: c.lng,
-        kind: 'place',
-        label: r.name,
-        placeKey: searchResultPlaceKey(r, i),
-      })
-    }
-  }
-  return out
-})
-
-const restaurantsWithoutMapCoords = computed(() => {
-  if (!searchData.value?.restaurants.length) return []
-  return searchData.value.restaurants.filter((r) => !coordsForSearchItem(r))
-})
-
-const searchListWithoutCoordsText = computed(() =>
-  restaurantsWithoutMapCoords.value.map((x) => x.name).join(', '),
-)
 
 const focusedSavedKey = ref<string | null>(null)
 const highlightedSavedId = ref<string | null>(null)
@@ -719,73 +381,6 @@ function onSavedMapPlaceClick(placeKey: string) {
   }, 2800)
 }
 
-function requestPosition(): Promise<void> {
-  geoMessage.value = null
-  return new Promise((resolve, reject) => {
-    if (!navigator.geolocation) {
-      geoMessage.value = 'Il browser non supporta la geolocalizzazione.'
-      reject(new Error('no geolocation'))
-      return
-    }
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        userPos.value = {
-          lat: pos.coords.latitude,
-          lng: pos.coords.longitude,
-        }
-        geoMessage.value = null
-        resolve()
-      },
-      (err) => {
-        if (err.code === err.PERMISSION_DENIED) {
-          geoMessage.value =
-            'Permesso posizione negato. Abilitalo nelle impostazioni del browser per cercare nel raggio scelto.'
-        } else if (err.code === err.POSITION_UNAVAILABLE) {
-          geoMessage.value = 'Posizione non disponibile. Riprova.'
-        } else {
-          geoMessage.value = 'Timeout nel recupero della posizione. Riprova.'
-        }
-        reject(err)
-      },
-      { enableHighAccuracy: true, timeout: 20_000, maximumAge: 60_000 },
-    )
-  })
-}
-
-async function runSearch() {
-  searchRunBusy.value = true
-  geoMessage.value = null
-  searchError.value = null
-  try {
-    let lat: number
-    let lng: number
-    if (discoverOriginMode.value === 'near_me') {
-      if (!userPos.value) {
-        try {
-          await requestPosition()
-        } catch {
-          return
-        }
-      }
-      if (!userPos.value) return
-      lat = userPos.value.lat
-      lng = userPos.value.lng
-    } else {
-      if (!discoverSelectedCenter.value) {
-        geoMessage.value =
-          'Cerca città o indirizzo, poi scegli un risultato dall’elenco prima di cercare.'
-        return
-      }
-      lat = discoverSelectedCenter.value.lat
-      lng = discoverSelectedCenter.value.lng
-    }
-    const r = Math.min(50, Math.max(1, Math.round(radiusKm.value)))
-    radiusKm.value = r
-    await search(lat, lng, r, { strict: searchStrictMode.value })
-  } finally {
-    searchRunBusy.value = false
-  }
-}
 
 watch(
   () => route.name,
@@ -810,7 +405,10 @@ function onPageShowRestaurants(ev: PageTransitionEvent) {
 }
 
 onBeforeUnmount(() => {
-  loadSavedSeq += 1
+  cancelPendingLoads()
+  cleanupDiscoveryTimers()
+  if (acTimer) clearTimeout(acTimer)
+  if (blurTimer) clearTimeout(blurTimer)
 })
 
 onMounted(() => {
@@ -901,7 +499,7 @@ onUnmounted(() => {
                 class="dropdown-menu dropdown-menu-end shadow-sm p-3 restaurants-info-menu"
               >
                 <p class="small text-secondary mb-2 mb-md-3">
-                  Cerca su Google mentre digiti, scegli il locale e valuta 1–5 stelle. Lista condivisa.
+                  Cerca su Google mentre digiti, scegli il locale e valuta 1?5 stelle. Lista condivisa.
                 </p>
                 <p class="small text-secondary mb-0">
                   GPS qui: suggerimenti più vicini mentre digiti. In «Scopri» puoi anche cercare per
@@ -989,7 +587,7 @@ onUnmounted(() => {
             class="border rounded-3 p-2 mb-2 bg-body-secondary bg-opacity-50"
           >
             <RestaurantPlaceCard
-              :item="detailsToItem(pendingPlace)"
+              :item="placeDetailsToSearchItem(pendingPlace)"
               variant="search"
               hide-add-button
               compact
@@ -1114,7 +712,7 @@ onUnmounted(() => {
                   >
                     <div class="accordion-body restaurants-accordion-body-dense">
                       <RestaurantPlaceCard
-                        :item="savedToItem(r)"
+                        :item="savedRestaurantToSearchItem(r)"
                         variant="saved"
                         suppress-header
                         compact
@@ -1506,67 +1104,25 @@ onUnmounted(() => {
       </section>
     </div>
 
-    <Teleport to="body">
-      <div
-        v-if="mineMapFullscreenOpen && savedMapMarkers.length"
-        class="restaurants-map-fs-backdrop"
-        role="dialog"
-        aria-modal="true"
-        aria-label="Mappa salvati"
-        @click.self="mineMapFullscreenOpen = false"
-      >
-        <div class="restaurants-map-fs-sheet" @click.stop>
-          <div class="restaurants-map-fs-head">
-            <span class="fw-semibold small">I tuoi salvati</span>
-            <button
-              type="button"
-              class="btn-close"
-              aria-label="Chiudi mappa"
-              @click="mineMapFullscreenOpen = false"
-            />
-          </div>
-          <div class="restaurants-map-fs-body">
-            <RestaurantMiniMap
-              :markers="savedMapMarkers"
-              :focus-place-key="focusedSavedKey"
-              height="min(72dvh, 32rem)"
-              @place-click="onSavedMapPlaceClick"
-            />
-          </div>
-        </div>
-      </div>
-    </Teleport>
+    <RestaurantMapSheet
+      :open="mineMapFullscreenOpen"
+      title="I tuoi salvati"
+      dialog-label="Mappa salvati"
+      :markers="savedMapMarkers"
+      :focus-place-key="focusedSavedKey"
+      @close="mineMapFullscreenOpen = false"
+      @place-click="onSavedMapPlaceClick"
+    />
 
-    <Teleport to="body">
-      <div
-        v-if="discoverMapFullscreenOpen && searchMapMarkers.length > 0"
-        class="restaurants-map-fs-backdrop"
-        role="dialog"
-        aria-modal="true"
-        aria-label="Mappa risultati ricerca"
-        @click.self="discoverMapFullscreenOpen = false"
-      >
-        <div class="restaurants-map-fs-sheet" @click.stop>
-          <div class="restaurants-map-fs-head">
-            <span class="fw-semibold small">{{ discoverMapFullscreenTitle }}</span>
-            <button
-              type="button"
-              class="btn-close"
-              aria-label="Chiudi mappa"
-              @click="discoverMapFullscreenOpen = false"
-            />
-          </div>
-          <div class="restaurants-map-fs-body">
-            <RestaurantMiniMap
-              :markers="searchMapMarkers"
-              :focus-place-key="focusedSearchResultKey"
-              height="min(72dvh, 32rem)"
-              @place-click="onSearchMapPlaceClick"
-            />
-          </div>
-        </div>
-      </div>
-    </Teleport>
+    <RestaurantMapSheet
+      :open="discoverMapFullscreenOpen"
+      :title="discoverMapFullscreenTitle"
+      dialog-label="Mappa risultati ricerca"
+      :markers="searchMapMarkers"
+      :focus-place-key="focusedSearchResultKey"
+      @close="discoverMapFullscreenOpen = false"
+      @place-click="onSearchMapPlaceClick"
+    />
 
     <Teleport to="body">
       <div
@@ -1882,62 +1438,10 @@ onUnmounted(() => {
   overflow: hidden;
 }
 
-.restaurants-map-fs-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 1060;
-  display: flex;
-  align-items: stretch;
-  justify-content: center;
-  padding: max(0.5rem, var(--app-safe-top)) 0.5rem max(0.5rem, var(--app-safe-bottom));
-  background: rgba(0, 0, 0, 0.48);
-  animation: restaurants-fs-fade 0.2s ease;
-}
-
-.restaurants-map-fs-sheet {
-  width: 100%;
-  max-width: 32rem;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  background: var(--bs-body-bg);
-  border-radius: 1rem;
-  overflow: hidden;
-  box-shadow: 0 0.5rem 2rem rgba(0, 0, 0, 0.2);
-}
-
-.restaurants-map-fs-head {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  padding: 0.5rem 0.75rem;
-  border-bottom: 1px solid var(--bs-border-color-translucent);
-}
-
-.restaurants-map-fs-body {
-  flex: 1;
-  min-height: 0;
-}
-
-@keyframes restaurants-fs-fade {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .restaurants-pill-tabs__btn,
   .restaurants-origin-pills__btn {
     transition: none;
-  }
-
-  .restaurants-map-fs-backdrop {
-    animation: none;
   }
 }
 
